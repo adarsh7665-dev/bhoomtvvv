@@ -13,10 +13,17 @@ jobs:
   inspect:
     runs-on: ubuntu-latest
     steps:
-      - name: Inspect player script
+      - name: Inspect page scripts
         shell: bash
         run: |
           set -e
-          curl --http1.1 --compressed -L --fail --silent --show-error --connect-timeout 5 --max-time 15 -A Mozilla/5.0 'https://bhoomtv.me/wp-content/themes/dooplay/assets/js/front.scripts.min.js?ver=2.5.5' -o player.js
-          echo "bytes=$(wc -c < player.js)"
-          python3 -c 'import re; p=open("player.js",errors="ignore").read(); terms=["admin-ajax.php","dooplay_player_ajax","dooplay_player_option","playeroptionsul"]; [print("### "+t+"\n"+"\n---\n".join(re.findall(r"(?is).{0,500}"+re.escape(t)+r".{0,1200}",p)[:10])) for t in terms]'
+          curl --http1.1 --compressed -L --fail --silent --show-error --connect-timeout 5 --max-time 15 -A Mozilla/5.0 'https://bhoomtv.me/live/mollywood-plus/' -o page.html
+          echo "bytes=$(wc -c < page.html)"
+          echo "-- script srcs --"
+          grep -oE 'https?://[^[:space:]<>\"'"'']+\.js[^[:space:]<>\"'"'']*' page.html | sort -u | head -200
+          echo "-- inline scripts containing player/option/ajax terms --"
+          grep -oE '<script[^>]*>[^<]*(player|option|ajax|nume|dooplay)[^<]*</script>' page.html | head -100 || true
+          echo "-- source option attributes --"
+          grep -oE '<li[^>]+data-type=[^>]+data-post=[^>]+data-nume=[^>]+>[^<]*.*</li>' page.html | head -30 || true
+          echo "-- all player related script URLs from HTML --"
+          grep -inE '(player|episode|film|dooplay|ajax)' page.html | grep -Ei '(script|javascript|src=)' | head -150 || true
