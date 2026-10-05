@@ -1,4 +1,4 @@
-name: BHOOM final diagnostics
+name: BHOOM targeted diagnostics
 
 on:
   workflow_dispatch:
@@ -13,25 +13,27 @@ jobs:
   inspect:
     runs-on: ubuntu-latest
     steps:
-      - name: Inspect geo player and DRM
+      - name: Inspect BHOOM geo player
         shell: bash
         run: |
           set -e
-          for url in 'https://bhoomtv.net/geo/watch/443' 'https://bhoomtv.net/geo/watch/1641'; do
-            echo "===== GEO $url ====="
-            curl --http1.1 --compressed -L --fail --silent --show-error --connect-timeout 5 --max-time 15 -A Mozilla/5.0 -e 'https://bhoomtv.me/live/mollywood-tv/' "$url" -o geo.html
-            echo "bytes=$(wc -c < geo.html)"
-            echo '-- public api references --'
-            grep -oE '.{0,700}rest-api/public.{0,1800}' geo.html | head -20 || true
-            echo '-- fetch/channel references --'
-            grep -oE '.{0,700}(fetch\(|pData|abr|channel|id).{0,1800}' geo.html | head -50 || true
-            echo '-- direct api links --'
-            grep -oE 'https?://[^[:space:]<>\"]+' geo.html | grep -Ei 'rest-api|geo' | sort -u | head -50 || true
-          done
-          for url in 'https://nxliv.com/sunxt/Play.php?c=13' 'https://nxliv.com/sunxt/Play.php?c=15'; do
-            echo "===== NXLIV $url ====="
-            curl --http1.1 --compressed -L --fail --silent --show-error --connect-timeout 5 --max-time 15 -A Mozilla/5.0 -e 'https://bhoomtv.me/live/mollywood-plus/' "$url" -o nx.html
-            echo "bytes=$(wc -c < nx.html)"
-            echo '-- DRM/stream values --'
-            grep -iE 'streamSource|drm|keyId|kid|clearKey|key|license|mpd' nx.html | head -120 || true
-          done
+          curl --http1.1 --compressed -L --fail --silent --show-error --connect-timeout 5 --max-time 12 -A Mozilla/5.0 -e 'https://bhoomtv.me/live/mollywood-tv/' 'https://bhoomtv.net/geo/watch/443' -o geo443.html
+          echo '=== GEO 443 ==='
+          grep -F 'rest-api/public' -A 8 -B 8 geo443.html | head -80 || true
+          grep -F 'pData' -A 8 -B 8 geo443.html | head -80 || true
+          grep -F 'fetch(' -A 8 -B 8 geo443.html | head -80 || true
+          curl --http1.1 --compressed -L --fail --silent --show-error --connect-timeout 5 --max-time 12 -A Mozilla/5.0 -e 'https://bhoomtv.me/live/mollywood-tv/' 'https://bhoomtv.net/geo/watch/1641' -o geo1641.html
+          echo '=== GEO 1641 ==='
+          grep -F 'rest-api/public' -A 8 -B 8 geo1641.html | head -80 || true
+          grep -F 'pData' -A 8 -B 8 geo1641.html | head -80 || true
+          grep -F 'fetch(' -A 8 -B 8 geo1641.html | head -80 || true
+          curl --http1.1 --compressed -L --fail --silent --show-error --connect-timeout 5 --max-time 12 -A Mozilla/5.0 -e 'https://bhoomtv.me/live/mollywood-plus/' 'https://nxliv.com/sunxt/Play.php?c=13' -o nx13.html
+          echo '=== NX 13 ==='
+          grep -F 'streamSource' -A 8 -B 8 nx13.html | head -80 || true
+          grep -iF 'keyId' -A 5 -B 5 nx13.html | head -80 || true
+          grep -iF 'clearKey' -A 5 -B 5 nx13.html | head -80 || true
+          curl --http1.1 --compressed -L --fail --silent --show-error --connect-timeout 5 --max-time 12 -A Mozilla/5.0 -e 'https://bhoomtv.me/live/mollywood-plus/' 'https://nxliv.com/sunxt/Play.php?c=15' -o nx15.html
+          echo '=== NX 15 ==='
+          grep -F 'streamSource' -A 8 -B 8 nx15.html | head -80 || true
+          grep -iF 'keyId' -A 5 -B 5 nx15.html | head -80 || true
+          grep -iF 'clearKey' -A 5 -B 5 nx15.html | head -80 || true
