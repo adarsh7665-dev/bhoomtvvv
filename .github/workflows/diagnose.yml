@@ -1,4 +1,4 @@
-name: BHOOM source diagnostics
+name: BHOOM player diagnostics
 
 on:
   workflow_dispatch:
@@ -13,19 +13,20 @@ jobs:
   inspect:
     runs-on: ubuntu-latest
     steps:
-      - name: Inspect BHOOM markup
+      - name: Inspect Dooplay player AJAX
         shell: bash
         run: |
           set -e
-          for item in mollywood-tv mollywood-plus; do
-            url="https://bhoomtv.me/live/$item/"
-            echo "===== $item ====="
-            curl -L --fail --silent --show-error -A Mozilla/5.0 "$url" -o "$item.html"
-            echo "bytes=$(wc -c < "$item.html")"
-            echo "-- channel names --"
-            grep -oiE 'Asianet[^<]{0,120}|Zee Keralam[^<]{0,120}|Surya[^<]{0,120}' "$item.html" | head -120 || true
-            echo "-- source/player terms --"
-            grep -inE 'Sources|source|player|stream|playlist|m3u8|mpd|iframe|data-src|data-url|ajax|api' "$item.html" | head -200 || true
-            echo "-- direct stream URLs --"
-            grep -oE 'https?://[^[:space:]<>\"]+(m3u8|mpd)(\?[^[:space:]<>\"]*)?' "$item.html" | sort -u | head -200 || true
-          done
+          curl -L --fail --silent --show-error -A Mozilla/5.0 'https://bhoomtv.me/wp-content/themes/dooplay/assets/js/front.scripts.min.js?ver=2.5.5' -o player.js
+          echo "bytes=$(wc -c < player.js)"
+          echo '-- player option references --'
+          grep -oE '.{0,500}player-option.{0,1500}' player.js | head -50 || true
+          echo '-- admin ajax references --'
+          grep -oE '.{0,500}admin-ajax.php.{0,1500}' player.js | head -50 || true
+          echo '-- dooplay_player_ajax references --'
+          grep -oE '.{0,500}dooplay_player_ajax.{0,1500}' player.js | head -50 || true
+          echo '-- ajax/action/player references --'
+          grep -oE '.{0,500}(ajax|action|post|nume|type).{0,1500}' player.js | grep -Ei 'player|dooplay|admin-ajax|nume|post' | head -100 || true
+          echo '-- relevant source page script config --'
+          curl -L --fail --silent --show-error -A Mozilla/5.0 'https://bhoomtv.me/live/mollywood-plus/' -o page.html
+          grep -oiE '<script[^>]*>[^<]*(player|ajax|nume|post)[^<]*</script>' page.html | head -100 || true
