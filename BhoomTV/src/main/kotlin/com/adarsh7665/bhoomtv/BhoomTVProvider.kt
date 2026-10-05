@@ -98,8 +98,10 @@ class BhoomTVProvider : MainAPI() {
             "https://bhoomtv.net/geo/live.m3u8?id=1641",
             "https://bhoomtv.net/geo/watch/1641"
         ),
-        "mollywood-plus:1" to FallbackMedia(
-            "https://d3dt6rg724ecr3.cloudfront.net/SuryaTv/SuryaTV-HDR10-IN-index.m3u8",
+        "mollywood-plus:1" to FallbackDrm(
+            "https://livestream6.sunnxt.com/30612a1b269d4a18aa14657641c47515/SuryaTVB_IN_index.mpd",
+            "56e1f5b5b72e4e45a98b6f287c265ab9",
+            "6dee8663e63cc8f8dda8478b8b2f3b71",
             "https://bhoomtv.me/jwplayer/"
         ),
         "mollywood-plus:4" to FallbackDrm(
@@ -119,6 +121,17 @@ class BhoomTVProvider : MainAPI() {
     private val preferredSourceIndexes = mapOf(
         "kairali-tv" to listOf(2, 4, 3, 1),
         "mazhavil-hd" to listOf(2, 3, 4, 5, 1)
+    )
+
+    private val preferredLiveFallbacks = mapOf(
+        "kairali-tv" to FallbackMedia(
+            "https://streams.tangotv.in/KAIRALI/ORIGIN/index.m3u8",
+            "https://bhoomtv.me/jwplayer/"
+        ),
+        "mazhavil-manorama-sd" to FallbackMedia(
+            "https://ddozob4sbfsmt.cloudfront.net/out/v1/51aaeddf56854312add90dfa8df07e39/index.m3u8",
+            "https://bhoomtv.me/jwplayer/"
+        )
     )
 
     private data class FallbackMedia(
@@ -234,6 +247,18 @@ class BhoomTVProvider : MainAPI() {
         source: IndexedSource,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
+        when (val fallback = indexedFallbacks[source.pageId + ":" + source.index]) {
+            is FallbackMedia -> return emitMedia(fallback.url, fallback.referer, callback)
+            is FallbackDrm -> return emitClearKey(
+                fallback.url,
+                fallback.referer,
+                fallback.kid,
+                fallback.key,
+                callback
+            )
+            null -> Unit
+        }
+
         val pageResponse = runCatching {
             app.get(source.pageUrl, referer = mainUrl, headers = browserHeaders())
         }.getOrNull()
@@ -286,6 +311,11 @@ class BhoomTVProvider : MainAPI() {
             }
 
         val slug = pageUrl.substringAfter("/live/").substringBefore("/").lowercase()
+
+        preferredLiveFallbacks[slug]?.let { fallback ->
+            if (emitMedia(fallback.url, fallback.referer, callback)) return true
+        }
+
         val preferred = preferredSourceIndexes[slug].orEmpty()
 
         val ordered = options.sortedWith(
