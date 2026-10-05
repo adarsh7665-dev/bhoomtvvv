@@ -1,4 +1,4 @@
-name: BHOOM focused audit
+name: BHOOM source audit
 
 on:
   workflow_dispatch:
@@ -13,7 +13,7 @@ jobs:
   audit:
     runs-on: ubuntu-latest
     steps:
-      - name: Audit selected channels
+      - name: Audit Kairali and Mazhavil
         shell: bash
         run: |
           set -e
@@ -21,11 +21,12 @@ jobs:
             page="https://bhoomtv.me/live/$slug/"
             echo "===== $page ====="
             curl --http1.1 --compressed -L --silent --show-error --connect-timeout 5 --max-time 15 -A Mozilla/5.0 "$page" -o page.html -w 'HTTP=%{http_code} FINAL=%{url_effective}\n' || true
-            post=$(grep -o 'data-post="[0-9]*"' page.html | head -1 | grep -o '[0-9]*' || true)
+            post=$(grep -oE "data-post=['\"][0-9]+['\"]" page.html | head -1 | grep -oE '[0-9]+' | head -1 || true)
             echo "POST=$post"
-            grep -o 'data-type="[^"]*" data-post="[^"]*" data-nume="[^"]*"' page.html | head -20 || true
-            for nume in 1 2 3 4 5 6 7 8 9 10 11 12; do
-              [ -z "$post" ] && break
+            grep -oE "data-type=['\"][^'\"]+['\"] data-post=['\"][0-9]+['\"] data-nume=['\"][0-9]+['\"]" page.html | head -20 || true
+            grep -oE "data-nume=['\"][0-9]+['\"]" page.html | head -20 || true
+            for nume in 1 2 3 4 5 6 7 8; do
+              if [ -z "$post" ]; then break; fi
               echo -n "NUME=$nume "
               curl --http1.1 --compressed -L --silent --show-error --connect-timeout 5 --max-time 12 -A Mozilla/5.0 -e "$page" -H 'Accept: application/json' "https://bhoomtv.me/wp-json/dooplayer/v2/$post/movie/$nume" -w ' STATUS=%{http_code}\n' || true
             done
