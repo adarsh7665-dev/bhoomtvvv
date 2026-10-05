@@ -20,14 +20,12 @@ jobs:
           for item in mollywood-tv mollywood-plus; do
             url="https://bhoomtv.me/live/$item/"
             echo "===== $item ====="
-            curl -L --fail --silent --show-error -A "Mozilla/5.0" "$url" -o "$item.html"
+            curl -L --fail --silent --show-error -A Mozilla/5.0 "$url" -o "$item.html"
             echo "bytes=$(wc -c < "$item.html")"
             echo "-- channel names --"
-            grep -oiE 'Asianet[^<]{0,100}|Zee Keralam[^<]{0,100}|Surya[^<]{0,100}' "$item.html" | head -100 || true
+            grep -oiE 'Asianet[^<]{0,120}|Zee Keralam[^<]{0,120}|Surya[^<]{0,120}' "$item.html" | head -120 || true
             echo "-- source/player terms --"
-            grep -oiE '.{0,250}(Sources|source|player|stream|playlist|m3u8|mpd|iframe|data-src|data-url).{0,500}' "$item.html" | head -120 || true
-            echo "-- scripts --"
-            grep -oiE '<script[^>]+src=[\"'"''][^\"'"'']+' "$item.html" | head -100 || true
+            grep -inE 'Sources|source|player|stream|playlist|m3u8|mpd|iframe|data-src|data-url|ajax|api' "$item.html" | head -200 || true
             echo "-- direct stream URLs --"
-            grep -oiE 'https?://[^\"'"''][^[:space:]<>]*(m3u8|mpd)[^\"'"'']*' "$item.html" | sort -u | head -200 || true
+            grep -oE 'https?://[^[:space:]<>\"]+(m3u8|mpd)(\?[^[:space:]<>\"]*)?' "$item.html" | sort -u | head -200 || true
           done
