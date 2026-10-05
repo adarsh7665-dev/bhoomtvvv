@@ -1,4 +1,4 @@
-name: BHOOM current playback audit
+name: BHOOM org audit
 
 on:
   workflow_dispatch:
@@ -13,80 +13,23 @@ jobs:
   audit:
     runs-on: ubuntu-latest
     steps:
-      - name: Audit current BHOOM sources
+      - name: Test current .org site
         shell: bash
         run: |
           set -e
-          python3 - <<'PY'
-import re, html, urllib.request
-
-UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/130 Safari/537.36"
-
-def get(url, referer=None):
-    headers = {
-        "User-Agent": UA,
-        "Accept": "text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8",
-    }
-    if referer:
-        headers["Referer"] = referer
-    req = urllib.request.Request(url, headers=headers)
-    with urllib.request.urlopen(req, timeout=15) as r:
-        return r.read().decode("utf-8", "ignore"), r.status
-
-home, _ = get("https://bhoomtv.me/channel/malayalam/")
-links = sorted(set(re.findall(r'https://bhoomtv\.me/live/[^"\s<>]+', home, re.I)))
-targets = [u for u in links if re.search(r"manorama|kairali", u, re.I)]
-
-print("=== TARGET HOMEPAGE LINKS ===")
-print("\n".join(targets))
-
-def clean_title(value):
-    return re.sub(r"<.*?>", "", html.unescape(value)).strip()
-
-def audit_page(page):
-    text, status = get(page, "https://bhoomtv.me/channel/malayalam/")
-    posts = re.findall(r'data-post=["\'](\d+)["\']', text, re.I)
-    post = posts[0] if posts else ""
-    options = re.findall(
-        r'<li[^>]*dooplay_player_option[^>]*data-post=["\'](\d+)["\'][^>]*data-nume=["\'](\d+)["\'][^>]*>.*?<span[^>]*class=["\']title["\'][^>]*>(.*?)</span>',
-        text,
-        re.I | re.S,
-    )
-    print(f"=== {page} status={status} post={post} ===")
-    print("OPTIONS", [(n, clean_title(title)) for p, n, title in options if p == post])
-    for p, n, title in options:
-        if p != post:
-            continue
-        api = f"https://bhoomtv.me/wp-json/dooplayer/v2/{p}/movie/{n}"
-        try:
-            body, st = get(api, page)
-            print("API", n, clean_title(title), st, body[:1200])
-        except Exception as e:
-            print("API", n, "ERROR", repr(e))
-
-for u in targets:
-    audit_page(u)
-
-print("=== SPECIAL CURRENT SOURCE APIs ===")
-special = [
-    ("mollywood-tv", 3),
-    ("mollywood-tv", 6),
-    ("mollywood-tv", 8),
-    ("mollywood-tv", 10),
-    ("mollywood-plus", 1),
-    ("mollywood-plus", 4),
-    ("mollywood-plus", 5),
-]
-
-for slug, n in special:
-    page = f"https://bhoomtv.me/live/{slug}/"
-    try:
-        text, _ = get(page)
-        m = re.search(r'data-post=["\'](\d+)["\']', text, re.I)
-        p = m.group(1) if m else ""
-        api = f"https://bhoomtv.me/wp-json/dooplayer/v2/{p}/movie/{n}"
-        body, st = get(api, page)
-        print(slug, n, p, st, body[:1200])
-    except Exception as e:
-        print(slug, n, "ERROR", repr(e))
-PY
+          for slug in kairali-tv mazhavil-hd mollywood-tv mollywood-plus; do
+            page="https://bhoomtv.org/live/$slug/"
+            echo "===== $page ====="
+            curl --http1.1 --compressed -L --fail --silent --show-error --connect-timeout 5 --max-time 15 -A Mozilla/5.0 "$page" -o page.html
+            echo "bytes=$(wc -c < page.html)"
+            post=$(grep -o 'data-post="[0-9]*"' page.html | head -1 | grep -o '[0-9]*' || true)
+            echo "post=$post"
+            grep -o 'data-nume="[0-9]*"' page.html | sort -u | head -30 || true
+            if [ -n "$post" ]; then
+              for nume in $(grep -o 'data-nume="[0-9]*"' page.html | grep -o '[0-9]*' | sort -nu | head -20); do
+                echo "--- nume=$nume ---"
+                curl --http1.1 --compressed -L --fail --silent --show-error --connect-timeout 5 --max-time 12 -A Mozilla/5.0 -e "$page" -H 'Accept: application/json' "https://bhoomtv.org/wp-json/dooplayer/v2/$post/movie/$nume" || true
+                echo
+              done
+            fi
+          done
