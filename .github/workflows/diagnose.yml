@@ -13,17 +13,15 @@ jobs:
   inspect:
     runs-on: ubuntu-latest
     steps:
-      - name: Inspect page scripts
+      - name: List BHOOM scripts
         shell: bash
         run: |
           set -e
           curl --http1.1 --compressed -L --fail --silent --show-error --connect-timeout 5 --max-time 15 -A Mozilla/5.0 'https://bhoomtv.me/live/mollywood-plus/' -o page.html
           echo "bytes=$(wc -c < page.html)"
-          echo "-- script srcs --"
-          grep -oE 'https?://[^[:space:]<>\"'"'']+\.js[^[:space:]<>\"'"'']*' page.html | sort -u | head -200
-          echo "-- inline scripts containing player/option/ajax terms --"
-          grep -oE '<script[^>]*>[^<]*(player|option|ajax|nume|dooplay)[^<]*</script>' page.html | head -100 || true
-          echo "-- source option attributes --"
-          grep -oE '<li[^>]+data-type=[^>]+data-post=[^>]+data-nume=[^>]+>[^<]*.*</li>' page.html | head -30 || true
-          echo "-- all player related script URLs from HTML --"
-          grep -inE '(player|episode|film|dooplay|ajax)' page.html | grep -Ei '(script|javascript|src=)' | head -150 || true
+          echo '-- javascript URLs --'
+          grep -oE 'https://[^[:space:]]+\.js[^[:space:]]*' page.html | sort -u | head -100
+          echo '-- dooplay/theme references --'
+          grep -oE 'https://[^[:space:]]+(dooplay|wp-content)[^[:space:]]+' page.html | sort -u | head -150
+          echo '-- inline snippets around player AJAX terms --'
+          grep -oE '.{0,250}(playeroption|dooplay_player|data-nume|data-post|admin-ajax|ajaxurl).{0,600}' page.html | head -80 || true
