@@ -13,24 +13,19 @@ jobs:
   inspect:
     runs-on: ubuntu-latest
     steps:
-      - name: Fetch player script
+      - name: Inspect player script
         shell: bash
         run: |
           set -e
           curl -L --fail --silent --show-error --max-time 25 -A Mozilla/5.0 'https://bhoomtv.me/wp-content/themes/dooplay/assets/js/front.scripts.min.js?ver=2.5.5' -o player.js
           echo "bytes=$(wc -c < player.js)"
-          python3 - <<'PY'
-p=open('player.js',encoding='utf-8',errors='ignore').read()
-terms=['admin-ajax.php','dooplay_player_ajax','player-option','dooplay_player_option','playeroptionsul','nume','data-post']
-for term in terms:
-    print('###',term)
-    start=0
-    count=0
-    while count<20:
-        i=p.lower().find(term.lower(),start)
-        if i<0: break
-        print(p[max(0,i-1000):min(len(p),i+2500)])
-        print()
-        start=i+len(term)
-        count+=1
-PY
+          echo "-- admin ajax --"
+          grep -oE '.{0,600}admin-ajax\.php.{0,1600}' player.js | head -40 || true
+          echo "-- dooplay player ajax --"
+          grep -oE '.{0,600}dooplay_player_ajax.{0,1600}' player.js | head -40 || true
+          echo "-- player option --"
+          grep -oE '.{0,600}dooplay_player_option.{0,1600}' player.js | head -40 || true
+          echo "-- playeroptionsul --"
+          grep -oE '.{0,600}playeroptionsul.{0,1600}' player.js | head -40 || true
+          echo "-- nume/post/action nearby --"
+          grep -oE '.{0,600}(nume|data-post|action).{0,1200}' player.js | grep -Ei 'player|ajax|post|nume' | head -80 || true
