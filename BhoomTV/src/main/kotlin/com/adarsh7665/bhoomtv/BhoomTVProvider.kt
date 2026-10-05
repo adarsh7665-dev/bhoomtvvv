@@ -81,6 +81,58 @@ class BhoomTVProvider : MainAPI() {
     )
 
     private val containerSlugs = setOf("mollywood-tv", "mollywood-plus", "mollywood-max")
+    private val indexedFallbacks = mapOf(
+        "mollywood-tv:3" to FallbackMedia(
+            "https://bhoomtv.net/geo/live.m3u8?id=443",
+            "https://bhoomtv.net/geo/watch/443"
+        ),
+        "mollywood-tv:6" to FallbackMedia(
+            "https://as-net.keralive.workers.dev/v1/master/a0d007312bfd99c47f76b77ae26b1ccdaae76cb1/asianetmovies_live_https/index.m3u8",
+            "https://bhoomtv.me/jwplayer/"
+        ),
+        "mollywood-tv:8" to FallbackMedia(
+            "https://as-net.keralive.workers.dev/v1/master/a0d007312bfd99c47f76b77ae26b1ccdaae76cb1/asianetplus_live_https/index.m3u8",
+            "https://bhoomtv.me/jwplayer/"
+        ),
+        "mollywood-tv:10" to FallbackMedia(
+            "https://bhoomtv.net/geo/live.m3u8?id=1641",
+            "https://bhoomtv.net/geo/watch/1641"
+        ),
+        "mollywood-plus:1" to FallbackMedia(
+            "https://d3dt6rg724ecr3.cloudfront.net/SuryaTv/SuryaTV-HDR10-IN-index.m3u8",
+            "https://bhoomtv.me/jwplayer/"
+        ),
+        "mollywood-plus:4" to FallbackDrm(
+            "https://nxliv.com/sunxt/livestream.sunnxt.com/e24ee14c395945bd8ccb065e1bce8b9b/SuryaMoviesB_IN_index.mpd",
+            "6b67bccef7024f2da29b42e10dc13f89",
+            "2e8460c47d3f01693e193dba5963a5e1",
+            "https://nxliv.com/sunxt/Play.php?c=13"
+        ),
+        "mollywood-plus:5" to FallbackDrm(
+            "https://nxliv.com/sunxt/livestream.sunnxt.com/6505e922bf164423ad122f404747356a/SuryaComedyB_IN_index.mpd",
+            "11563b00a46b43f2a0f80ecf42a4fb77",
+            "9bad28ad6f23dbb917c63ee680f66a1f",
+            "https://nxliv.com/sunxt/Play.php?c=15"
+        )
+    )
+
+    private val preferredSourceIndexes = mapOf(
+        "kairali-tv" to listOf(2, 4, 3, 1),
+        "mazhavil-hd" to listOf(2, 3, 4, 5, 1)
+    )
+
+    private data class FallbackMedia(
+        val url: String,
+        val referer: String
+    )
+
+    private data class FallbackDrm(
+        val url: String,
+        val kid: String,
+        val key: String,
+        val referer: String
+    )
+
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val pageNumber = page.coerceAtLeast(1)
@@ -184,23 +236,37 @@ class BhoomTVProvider : MainAPI() {
     ): Boolean {
         val pageResponse = runCatching {
             app.get(source.pageUrl, referer = mainUrl, headers = browserHeaders())
-        }.getOrNull() ?: return false
+        }.getOrNull()
 
-        val option = findSourceOption(pageResponse.document, source.index)
-            ?: pageResponse.document
-                .select("li.dooplay_player_option")
-                .firstOrNull {
-                    normalize(it.selectFirst(".title")?.text().orEmpty()) == normalize(source.title)
-                }
-            ?: return false
+        val option = pageResponse?.document?.let {
+            findSourceOption(it, source.index)
+                ?: it.select("li.dooplay_player_option")
+                    .firstOrNull { item ->
+                        normalize(item.selectFirst(".title")?.text().orEmpty()) == normalize(source.title)
+                    }
+        }
 
-        val post = option.attr("data-post").trim()
-        val type = option.attr("data-type").ifBlank { "movie" }
-        val nume = option.attr("data-nume").toIntOrNull() ?: source.index
+        if (option != null) {
+            val post = option.attr("data-post").trim()
+            val type = option.attr("data-type").ifBlank { "movie" }
+            val nume = option.attr("data-nume").toIntOrNull() ?: source.index
 
-        if (post.isBlank()) return false
+            if (post.isNotBlank() && resolveDooplaySource(source.pageUrl, post, type, nume, callback)) {
+                return true
+            }
+        }
 
-        return resolveDooplaySource(source.pageUrl, post, type, nume, callback)
+        return when (val fallback = indexedFallbacks[source.pageId + ":" + source.index]) {
+            is FallbackMedia -> emitMedia(fallback.url, fallback.referer, callback)
+            is FallbackDrm -> emitClearKey(
+                fallback.url,
+                fallback.referer,
+                fallback.kid,
+                fallback.key,
+                callback
+            )
+            null -> false
+        }
     }
 
     private suspend fun resolveLivePage(
@@ -217,9 +283,21 @@ class BhoomTVProvider : MainAPI() {
             .distinctBy {
                 it.attr("data-post") + ":" + it.attr("data-type") + ":" + it.attr("data-nume")
             }
-            .sortedBy { it.attr("data-nume").toIntOrNull() ?: Int.MAX_VALUE }
 
-        for (option in options.take(12)) {
+        val slug = pageUrl.substringAfter("/live/").substringBefore("/").lowercase()
+        val preferred = preferredSourceIndexes[slug].orEmpty()
+
+        val ordered = options.sortedWith(
+            compareBy<org.jsoup.nodes.Element> {
+                val n = it.attr("data-nume").toIntOrNull() ?: Int.MAX_VALUE
+                val p = preferred.indexOf(n)
+                if (p < 0) Int.MAX_VALUE else p
+            }.thenBy {
+                it.attr("data-nume").toIntOrNull() ?: Int.MAX_VALUE
+            }
+        )
+
+        for (option in ordered.take(12)) {
             val post = option.attr("data-post").trim()
             val type = option.attr("data-type").ifBlank { "movie" }
             val nume = option.attr("data-nume").toIntOrNull() ?: continue
@@ -248,34 +326,38 @@ class BhoomTVProvider : MainAPI() {
         nume: Int,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        val apiUrl = "$mainUrl/wp-json/dooplayer/v2/$post/$type/$nume"
-
-        val response = runCatching {
-            app.get(
-                apiUrl,
-                referer = pageUrl,
-                headers = mapOf(
-                    "Accept" to "application/json, text/javascript, */*; q=0.01",
-                    "X-Requested-With" to "XMLHttpRequest",
-                    "Origin" to mainUrl,
-                    "User-Agent" to USER_AGENT
-                )
-            )
-        }.getOrNull() ?: return false
-
-        if (!response.isSuccessful) return false
-
-        val embedUrl = runCatching {
-            JSONObject(response.text).optString("embed_url").trim()
-        }.getOrNull().orEmpty()
-
-        if (embedUrl.isBlank()) return false
-
-        return resolveEmbed(
-            normalizeUrl(embedUrl, pageUrl) ?: return false,
-            pageUrl,
-            callback
+        val apiUrls = listOf(
+            "$mainUrl/wp-json/dooplayer/v2/$post/$type/$nume",
+            "https://bhoomtv.me/wp-json/dooplayer/v2/$post/$type/$nume"
         )
+
+        for (apiUrl in apiUrls.distinct()) {
+            val response = runCatching {
+                app.get(
+                    apiUrl,
+                    referer = pageUrl,
+                    headers = mapOf(
+                        "Accept" to "application/json, text/javascript, */*; q=0.01",
+                        "X-Requested-With" to "XMLHttpRequest",
+                        "Origin" to mainUrl,
+                        "User-Agent" to USER_AGENT
+                    )
+                )
+            }.getOrNull() ?: continue
+
+            if (!response.isSuccessful) continue
+
+            val embedUrl = runCatching {
+                JSONObject(response.text).optString("embed_url").trim()
+            }.getOrNull().orEmpty()
+
+            if (embedUrl.isBlank()) continue
+
+            val normalized = normalizeUrl(embedUrl, pageUrl) ?: continue
+            if (resolveEmbed(normalized, pageUrl, callback)) return true
+        }
+
+        return false
     }
 
     private suspend fun resolveEmbed(
@@ -284,30 +366,38 @@ class BhoomTVProvider : MainAPI() {
         callback: (ExtractorLink) -> Unit
     ): Boolean {
         if (isMediaUrl(embedUrl)) {
-            emitMedia(embedUrl, pageUrl, callback)
-            return true
+            return emitMedia(embedUrl, pageUrl, callback)
         }
 
         if (embedUrl.contains("$mainUrl/jwplayer/", true)) {
             extractQueryParameter(embedUrl, "source")?.let { source ->
                 val media = normalizeUrl(source, embedUrl)
-                if (media != null && isMediaUrl(media)) {
-                    emitMedia(media, embedUrl, callback)
+                if (media != null && isMediaUrl(media) && emitMedia(media, embedUrl, callback)) {
                     return true
                 }
             }
         }
 
-        Regex("""^https?://(?:www\.)?bhoomtv\.net/geo/watch/(\d+)""", RegexOption.IGNORE_CASE)
-            .find(embedUrl)
-            ?.groupValues?.getOrNull(1)
-            ?.toIntOrNull()
-            ?.let {
-                return resolveGeoChannel(it, embedUrl, callback)
-            }
+        if (embedUrl.contains("b4uplay.com/player.php", true)) {
+            val mpd = extractQueryParameter(embedUrl, "mpd")
+            val kid = extractQueryParameter(embedUrl, "keyId")
+            val key = extractQueryParameter(embedUrl, "key")
 
-        if (embedUrl.contains("nxliv.com/", true)) {
-            if (resolveNxliv(embedUrl, pageUrl, callback)) return true
+            if (!mpd.isNullOrBlank() && !kid.isNullOrBlank() && !key.isNullOrBlank()) {
+                if (emitClearKey(mpd, embedUrl, kid, key, callback)) return true
+            }
+        }
+
+        Regex(
+            """^https?://(?:www\.)?bhoomtv\.net/geo/(?:watch/(\d+)|watch\.php\?id=(\d+))""",
+            RegexOption.IGNORE_CASE
+        ).find(embedUrl)?.let { match ->
+            val id = match.groupValues[1].ifBlank { match.groupValues[2] }.toIntOrNull()
+            if (id != null && resolveGeoChannel(id, embedUrl, callback)) return true
+        }
+
+        if (embedUrl.contains("nxliv.com/", true) && resolveNxliv(embedUrl, pageUrl, callback)) {
+            return true
         }
 
         val page = runCatching {
@@ -316,11 +406,13 @@ class BhoomTVProvider : MainAPI() {
 
         if (page != null) {
             val directMedia = extractMediaUrls(page.text, embedUrl)
-            if (directMedia.isNotEmpty()) {
-                directMedia.forEach { emitMedia(it, embedUrl, callback) }
-                return true
+            for (media in directMedia) {
+                if (emitMedia(media, embedUrl, callback)) return true
             }
 
+            parsePlayerStream(page.text)?.let { parsed ->
+                if (emitParsedPlayer(parsed, embedUrl, callback)) return true
+            }
         }
 
         return false
@@ -343,37 +435,41 @@ class BhoomTVProvider : MainAPI() {
                 ),
                 referer = embedUrl
             )
-        }.getOrNull() ?: return false
+        }.getOrNull()
 
-        if (!response.isSuccessful) return false
+        if (response != null && response.isSuccessful) {
+            val json = runCatching { JSONObject(response.text) }.getOrNull()
+            val playback = json?.optJSONObject("data")
+                ?.optJSONObject("playback")
+                ?.optJSONObject("data")
 
-        val json = runCatching { JSONObject(response.text) }.getOrNull() ?: return false
-        val playback = json.optJSONObject("data")
-            ?.optJSONObject("playback")
-            ?.optJSONObject("data")
-            ?: return false
+            if (playback != null) {
+                val abr = playback.optString("abr").trim()
+                val dbr = playback.optString("dbr").trim()
+                val drm = playback.optBoolean("drm", false)
 
-        val abr = playback.optString("abr").trim()
-        val dbr = playback.optString("dbr").trim()
-        val drm = playback.optBoolean("drm", false)
+                if (abr.isNotBlank()) {
+                    val kid = firstNonBlank(playback.optString("kid"), playback.optString("keyId"))
+                    val key = firstNonBlank(playback.optString("key"), playback.optString("clearkey"))
 
-        if (abr.isBlank()) return false
+                    if (drm && kid != null && key != null && emitClearKey(abr, embedUrl, kid, key, callback)) {
+                        return true
+                    }
 
-        val kid = firstNonBlank(playback.optString("kid"), playback.optString("keyId"))
-        val key = firstNonBlank(playback.optString("key"), playback.optString("clearkey"))
+                    if (drm && dbr.isNotBlank() && emitWidevine(abr, embedUrl, dbr, callback)) {
+                        return true
+                    }
 
-        if (drm && kid != null && key != null) {
-            emitClearKey(abr, embedUrl, kid, key, callback)
-            return true
+                    if (emitMedia(abr, embedUrl, callback)) return true
+                }
+            }
         }
 
-        if (drm && dbr.isNotBlank()) {
-            emitWidevine(abr, embedUrl, dbr, callback)
-            return true
-        }
-
-        emitMedia(normalizeUrl(abr, embedUrl) ?: return false, embedUrl, callback)
-        return true
+        return emitMedia(
+            "$bhoomNetUrl/geo/live.m3u8?id=$id",
+            embedUrl,
+            callback
+        )
     }
 
     private suspend fun resolveNxliv(
@@ -386,39 +482,55 @@ class BhoomTVProvider : MainAPI() {
         }.getOrNull() ?: return false
 
         val html = response.text
-        val stream = Regex("""(?i)(?:let|var|const)\s+streamSource\s*=\s*["']([^"']+)["']""")
-            .find(html)?.groupValues?.getOrNull(1)
+        val stream = Regex(
+            """(?i)(?:let|var|const)\s+streamSource\s*=\s*["']([^"']+)["']"""
+        ).find(html)?.groupValues?.getOrNull(1)
             ?.let { normalizeUrl(it, embedUrl) }
             ?: return false
 
-        val keyId = Regex("""(?i)(?:const|let|var)\s+keyId\s*=\s*["']([^"']+)["']""")
-            .find(html)?.groupValues?.getOrNull(1)?.trim()
-        val key = Regex("""(?i)(?:const|let|var)\s+key\s*=\s*["']([^"']+)["']""")
-            .find(html)?.groupValues?.getOrNull(1)?.trim()
+        val keyId = Regex(
+            """(?i)(?:const|let|var)\s+keyId\s*=\s*["']([^"']+)["']"""
+        ).find(html)?.groupValues?.getOrNull(1)?.trim()
+
+        val key = Regex(
+            """(?i)(?:const|let|var)\s+key\s*=\s*["']([^"']+)["']"""
+        ).find(html)?.groupValues?.getOrNull(1)?.trim()
 
         if (!isMediaUrl(stream)) return false
 
-        if (!keyId.isNullOrBlank() && !key.isNullOrBlank()) {
+        return if (!keyId.isNullOrBlank() && !key.isNullOrBlank()) {
             emitClearKey(stream, embedUrl, keyId, key, callback)
         } else {
             emitMedia(stream, embedUrl, callback)
         }
-
-        return true
     }
 
     private suspend fun emitMedia(
         url: String,
         referer: String,
         callback: (ExtractorLink) -> Unit
-    ) {
-        val normalized = normalizeUrl(url, referer) ?: return
-        if (!isMediaUrl(normalized)) return
+    ): Boolean {
+        val normalized = normalizeUrl(url, referer) ?: return false
+        if (!isMediaUrl(normalized)) return false
 
         val type = if (normalized.contains(".mpd", true)) {
             ExtractorLinkType.DASH
         } else {
             ExtractorLinkType.M3U8
+        }
+
+        val headers = mutableMapOf(
+            "User-Agent" to USER_AGENT,
+            "Accept" to "*/*"
+        )
+
+        when {
+            normalized.contains("streams.tangotv.in", true) ||
+                normalized.contains("keralive.workers.dev", true) ||
+                normalized.contains("vgcdn.net", true) ||
+                normalized.contains("akamaized.net", true) -> {
+                headers["Origin"] = "https://bhoomtv.me"
+            }
         }
 
         callback(
@@ -429,13 +541,12 @@ class BhoomTVProvider : MainAPI() {
                 type = type
             ) {
                 this.referer = referer
-                headers = mapOf(
-                    "User-Agent" to USER_AGENT,
-                    "Accept" to "*/*"
-                )
+                this.headers = headers
                 quality = Qualities.Unknown.value
             }
         )
+
+        return true
     }
 
     private suspend fun emitClearKey(
@@ -444,9 +555,14 @@ class BhoomTVProvider : MainAPI() {
         kid: String,
         key: String,
         callback: (ExtractorLink) -> Unit
-    ) {
-        val normalized = normalizeUrl(url, referer) ?: return
-        if (!normalized.contains(".mpd", true)) return
+    ): Boolean {
+        val normalized = normalizeUrl(url, referer) ?: return false
+        if (!normalized.contains(".mpd", true)) return false
+
+        val origin = runCatching {
+            val uri = URI(referer)
+            uri.scheme.orEmpty() + "://" + uri.host.orEmpty()
+        }.getOrDefault("https://nxliv.com")
 
         callback(
             newDrmExtractorLink(
@@ -462,11 +578,14 @@ class BhoomTVProvider : MainAPI() {
                 this.referer = referer
                 headers = mapOf(
                     "User-Agent" to USER_AGENT,
-                    "Accept" to "*/*"
+                    "Accept" to "*/*",
+                    "Origin" to origin
                 )
                 quality = Qualities.Unknown.value
             }
         )
+
+        return true
     }
 
     private suspend fun emitWidevine(
@@ -474,9 +593,9 @@ class BhoomTVProvider : MainAPI() {
         referer: String,
         licenseUrl: String,
         callback: (ExtractorLink) -> Unit
-    ) {
-        val normalized = normalizeUrl(url, referer) ?: return
-        if (!normalized.contains(".mpd", true)) return
+    ): Boolean {
+        val normalized = normalizeUrl(url, referer) ?: return false
+        if (!normalized.contains(".mpd", true)) return false
 
         callback(
             newDrmExtractorLink(
@@ -495,6 +614,42 @@ class BhoomTVProvider : MainAPI() {
                 quality = Qualities.Unknown.value
             }
         )
+
+        return true
+    }
+
+    private data class ParsedPlayer(
+        val url: String,
+        val kid: String? = null,
+        val key: String? = null
+    )
+
+    private fun parsePlayerStream(html: String): ParsedPlayer? {
+        val stream = Regex(
+            """(?i)(?:let|var|const)\s+streamSource\s*=\s*["']([^"']+)["']"""
+        ).find(html)?.groupValues?.getOrNull(1) ?: return null
+
+        val keyId = Regex(
+            """(?i)(?:const|let|var)\s+keyId\s*=\s*["']([^"']+)["']"""
+        ).find(html)?.groupValues?.getOrNull(1)
+
+        val key = Regex(
+            """(?i)(?:const|let|var)\s+key\s*=\s*["']([^"']+)["']"""
+        ).find(html)?.groupValues?.getOrNull(1)
+
+        return ParsedPlayer(stream, keyId, key)
+    }
+
+    private suspend fun emitParsedPlayer(
+        parsed: ParsedPlayer,
+        referer: String,
+        callback: (ExtractorLink) -> Unit
+    ): Boolean {
+        return if (!parsed.kid.isNullOrBlank() && !parsed.key.isNullOrBlank()) {
+            emitClearKey(parsed.url, referer, parsed.kid, parsed.key, callback)
+        } else {
+            emitMedia(parsed.url, referer, callback)
+        }
     }
 
     private suspend fun dispatchDirectCandidates(
