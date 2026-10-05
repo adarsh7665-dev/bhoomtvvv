@@ -544,7 +544,7 @@ class BhoomTVProvider : MainAPI() {
         val candidates = linkedSetOf<String>()
 
         val pattern = Regex(
-            """(?i)(?:https?:)?//[^"'\\s<>\\\\]+\.(?:m3u8|mpd)(?:\?[^"'\\s<>\\\\]*)?"""
+            """(?i)(?:https?:)?//[^"'\s<>\\]+\.(?:m3u8|mpd)(?:\?[^"'\s<>\\]*)?"""
         )
 
         pattern.findAll(text).forEach {
@@ -560,7 +560,7 @@ class BhoomTVProvider : MainAPI() {
 
         extractMediaUrls(text, baseUrl).forEach { candidates += it }
 
-        val absolute = Regex("""(?i)https?://[^"'s<>]+""")
+        val absolute = Regex("""(?i)https?://[^"'\s<>]+""")
         absolute.findAll(text).forEach {
             val normalized = normalizeUrl(it.value, baseUrl)
             if (normalized != null && isLikelyPlayerOrPage(normalized)) {
