@@ -13,31 +13,37 @@ jobs:
   inspect:
     runs-on: ubuntu-latest
     steps:
-      - name: Test BHOOM endpoints
+      - name: Inspect BHOOM source markup
         shell: bash
         run: |
-          set +e
-          urls=(
-            "https://bhoomtv.org/"
-            "http://bhoomtv.org/"
-            "https://bhoomtv.org/live/mollywood-tv/"
-            "https://bhoomtv.org/live/mollywood-plus/"
-            "https://bhoomtv.net/"
-            "https://bhoomtv.net/live/mollywood-tv/"
-            "https://bhoomtv.net/live/mollywood-plus/"
-            "https://bhoomtv.me/"
-            "https://bhoomtv.me/live/mollywood-tv/"
-            "https://bhoomtv.me/live/mollywood-plus/"
-            "https://bhoomtv.org/wp-json/wp/v2/search?search=Mollywood"
-            "https://bhoomtv.org/wp-json/wp/v2/pages?search=Mollywood&per_page=20"
-            "https://bhoomtv.org/wp-json/wp/v2/posts?search=Mollywood&per_page=20"
-          )
-          for url in "${urls[@]}"; do
-            echo "===== $url ====="
-            curl -L --max-time 20 -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/130 Safari/537.36" -H "Accept: text/html,application/json,*/*" -sS -o /tmp/out -w "status=%{http_code} final=%{url_effective} bytes=%{size_download}\n" "$url"
-            if [ -s /tmp/out ]; then
-              head -c 1200 /tmp/out | tr '\r\n' ' ' | sed 's/[[:space:]]\+/ /g'
-              echo
-              echo
-            fi
+          set -e
+          for item in mollywood-tv mollywood-plus; do
+            url="https://bhoomtv.me/live/$item/"
+            curl -L --fail --silent --show-error -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/130 Safari/537.36" -H "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8" "$url" -o "$item.html"
+            echo "===== $item : $(wc -c < "$item.html") bytes ====="
+            echo "-- target labels and nearby markup --"
+            python3 - "$item.html" <<'PY'
+import sys,re,html
+p=open(sys.argv[1],encoding='utf-8',errors='ignore').read()
+names=['Asianet HD - JIO','Asianet Movies HD','Asianet Plus','Zee Keralam HD','Surya TV FHD','Surya Movies','Surya Comedy']
+for n in names:
+    for m in re.finditer(re.escape(n),p,re.I):
+        print('###',n)
+        s=max(0,m.start()-900); e=min(len(p),m.end()+1800)
+        print(html.unescape(p[s:e]).replace('><','>\n<'))
+        break
+print('-- scripts containing source/player/stream terms --')
+for m in re.finditer(r'<script[^>]*>(.*?)</script>',p,re.I|re.S):
+    body=m.group(1)
+    if re.search(r'(?i)(source|stream|player|playlist|m3u8|mpd|iframe|ajax|api)',body):
+        b=html.unescape(body)
+        print(b[:5000])
+print('-- all iframe/player/data attributes --')
+for m in re.finditer(r'<(?:iframe|video|source|div|button|a)[^>]*(?:src|href|data-[a-z-]+|onclick)=[^>]+>',p,re.I):
+    tag=html.unescape(m.group(0))
+    if re.search(r'(?i)(source|stream|player|video|m3u8|mpd|embed|iframe|ajax|api|live)',tag):
+        print(tag)
+PY
+            echo "-- absolute media/player URLs --"
+            grep -oiE 'https?://[^"'"'[:space:]<>]+' "$item.html" | grep -Ei '(m3u8|mpd|player|embed|stream|source|playlist|live|api)' | sort -u | head -300 || true
           done
