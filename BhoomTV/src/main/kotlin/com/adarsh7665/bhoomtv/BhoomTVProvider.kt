@@ -266,6 +266,7 @@ class BhoomTVProvider : MainAPI() {
                 callback
             )
             null -> false
+            else -> false
         }
     }
 
