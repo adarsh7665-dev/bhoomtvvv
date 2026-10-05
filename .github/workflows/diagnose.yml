@@ -1,4 +1,4 @@
-name: BHOOM player diagnostics
+name: BHOOM source API diagnostics
 
 on:
   workflow_dispatch:
@@ -13,10 +13,20 @@ jobs:
   inspect:
     runs-on: ubuntu-latest
     steps:
-      - name: Inspect Dooplay AJAX script
+      - name: Query BHOOM source API
         shell: bash
         run: |
           set -e
-          curl --http1.1 --compressed -L --fail --silent --show-error --connect-timeout 5 --max-time 15 -A Mozilla/5.0 'https://bhoomtv.me/wp-content/themes/dooplay/assets/js/front.ajax.min.js?ver=2.5.5' -o ajax.js
-          echo "bytes=$(wc -c < ajax.js)"
-          python3 -c 'import re; p=open("ajax.js",errors="ignore").read(); terms=["dooplayer/v2","play_method","data-nume","data-post","dooplay_player_option","play_ajaxmd","player_api"]; [print("### "+t+"\n"+"\n---\n".join(re.findall(r"(?is).{0,1000}"+re.escape(t)+r".{0,2500}",p)[:20])) for t in terms]'
+          for item in mollywood-tv mollywood-plus; do
+            url="https://bhoomtv.me/live/$item/"
+            curl --http1.1 --compressed -L --fail --silent --show-error --connect-timeout 5 --max-time 15 -A Mozilla/5.0 "$url" -o page.html
+            post=$(grep -oE 'data-post=["'"'][0-9]+'"'"']' page.html | head -1 | grep -oE '[0-9]+' | head -1)
+            echo "===== $item post=$post ====="
+            if [ "$item" = "mollywood-tv" ]; then indexes="3 6 8 10"; else indexes="1 4 5"; fi
+            for nume in $indexes; do
+              api="https://bhoomtv.me/wp-json/dooplayer/v2/$post/movie/$nume"
+              echo "--- nume=$nume ---"
+              curl --http1.1 --compressed -L --fail --silent --show-error --connect-timeout 5 --max-time 15 -A Mozilla/5.0 -H 'Accept: application/json' "$api" || true
+              echo
+            done
+          done
