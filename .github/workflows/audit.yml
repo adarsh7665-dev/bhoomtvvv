@@ -1,4 +1,4 @@
-name: BHOOM org audit
+name: BHOOM focused audit
 
 on:
   workflow_dispatch:
@@ -13,23 +13,20 @@ jobs:
   audit:
     runs-on: ubuntu-latest
     steps:
-      - name: Test current .org site
+      - name: Audit selected channels
         shell: bash
         run: |
           set -e
-          for slug in kairali-tv mazhavil-hd mollywood-tv mollywood-plus; do
-            page="https://bhoomtv.org/live/$slug/"
+          for slug in kairali-tv mazhavil-hd; do
+            page="https://bhoomtv.me/live/$slug/"
             echo "===== $page ====="
-            curl --http1.1 --compressed -L --fail --silent --show-error --connect-timeout 5 --max-time 15 -A Mozilla/5.0 "$page" -o page.html
-            echo "bytes=$(wc -c < page.html)"
+            curl --http1.1 --compressed -L --silent --show-error --connect-timeout 5 --max-time 15 -A Mozilla/5.0 "$page" -o page.html -w 'HTTP=%{http_code} FINAL=%{url_effective}\n' || true
             post=$(grep -o 'data-post="[0-9]*"' page.html | head -1 | grep -o '[0-9]*' || true)
-            echo "post=$post"
-            grep -o 'data-nume="[0-9]*"' page.html | sort -u | head -30 || true
-            if [ -n "$post" ]; then
-              for nume in $(grep -o 'data-nume="[0-9]*"' page.html | grep -o '[0-9]*' | sort -nu | head -20); do
-                echo "--- nume=$nume ---"
-                curl --http1.1 --compressed -L --fail --silent --show-error --connect-timeout 5 --max-time 12 -A Mozilla/5.0 -e "$page" -H 'Accept: application/json' "https://bhoomtv.org/wp-json/dooplayer/v2/$post/movie/$nume" || true
-                echo
-              done
-            fi
+            echo "POST=$post"
+            grep -o 'data-type="[^"]*" data-post="[^"]*" data-nume="[^"]*"' page.html | head -20 || true
+            for nume in 1 2 3 4 5 6 7 8 9 10 11 12; do
+              [ -z "$post" ] && break
+              echo -n "NUME=$nume "
+              curl --http1.1 --compressed -L --silent --show-error --connect-timeout 5 --max-time 12 -A Mozilla/5.0 -e "$page" -H 'Accept: application/json' "https://bhoomtv.me/wp-json/dooplayer/v2/$post/movie/$nume" -w ' STATUS=%{http_code}\n' || true
+            done
           done
