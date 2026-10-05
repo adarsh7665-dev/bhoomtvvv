@@ -1,4 +1,4 @@
-name: BHOOM embed diagnostics
+name: BHOOM final diagnostics
 
 on:
   workflow_dispatch:
@@ -13,25 +13,25 @@ jobs:
   inspect:
     runs-on: ubuntu-latest
     steps:
-      - name: Inspect returned BHOOM players
+      - name: Inspect geo player and DRM
         shell: bash
         run: |
           set -e
-          test_url () {
-            label="$1"
-            url="$2"
-            referer="$3"
-            echo "===== $label ====="
-            curl --http1.1 --compressed -L --silent --show-error --connect-timeout 5 --max-time 15 -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/130 Safari/537.36' -e "$referer" "$url" -o tmp.html || true
-            echo "bytes=$(wc -c < tmp.html 2>/dev/null || echo 0)"
-            echo '-- media URLs --'
-            grep -oE 'https?://[^[:space:]<>\"]+(m3u8|mpd)(\?[^[:space:]<>\"]*)?' tmp.html 2>/dev/null | sort -u | head -100 || true
-            echo '-- iframe/source URLs --'
-            grep -oE 'https?://[^[:space:]<>\"]+' tmp.html 2>/dev/null | grep -Ei 'iframe|player|stream|source|playlist|sunxt|nxliv|bhoom' | sort -u | head -100 || true
-            echo '-- relevant snippets --'
-            grep -iE 'm3u8|mpd|iframe|player|source|playlist|stream|jwplayer' tmp.html 2>/dev/null | head -60 || true
-          }
-          test_url 'Asianet HD - JIO' 'https://bhoomtv.net/geo/watch/443' 'https://bhoomtv.me/live/mollywood-tv/'
-          test_url 'Zee Keralam HD' 'https://bhoomtv.net/geo/watch/1641' 'https://bhoomtv.me/live/mollywood-tv/'
-          test_url 'Surya Movies' 'https://nxliv.com/sunxt/Play.php?c=13' 'https://bhoomtv.me/live/mollywood-plus/'
-          test_url 'Surya Comedy' 'https://nxliv.com/sunxt/Play.php?c=15' 'https://bhoomtv.me/live/mollywood-plus/'
+          for url in 'https://bhoomtv.net/geo/watch/443' 'https://bhoomtv.net/geo/watch/1641'; do
+            echo "===== GEO $url ====="
+            curl --http1.1 --compressed -L --fail --silent --show-error --connect-timeout 5 --max-time 15 -A Mozilla/5.0 -e 'https://bhoomtv.me/live/mollywood-tv/' "$url" -o geo.html
+            echo "bytes=$(wc -c < geo.html)"
+            echo '-- public api references --'
+            grep -oE '.{0,700}rest-api/public.{0,1800}' geo.html | head -20 || true
+            echo '-- fetch/channel references --'
+            grep -oE '.{0,700}(fetch\(|pData|abr|channel|id).{0,1800}' geo.html | head -50 || true
+            echo '-- direct api links --'
+            grep -oE 'https?://[^[:space:]<>\"]+' geo.html | grep -Ei 'rest-api|geo' | sort -u | head -50 || true
+          done
+          for url in 'https://nxliv.com/sunxt/Play.php?c=13' 'https://nxliv.com/sunxt/Play.php?c=15'; do
+            echo "===== NXLIV $url ====="
+            curl --http1.1 --compressed -L --fail --silent --show-error --connect-timeout 5 --max-time 15 -A Mozilla/5.0 -e 'https://bhoomtv.me/live/mollywood-plus/' "$url" -o nx.html
+            echo "bytes=$(wc -c < nx.html)"
+            echo '-- DRM/stream values --'
+            grep -iE 'streamSource|drm|keyId|kid|clearKey|key|license|mpd' nx.html | head -120 || true
+          done
