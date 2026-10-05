@@ -1,4 +1,4 @@
-name: BHOOM targeted diagnostics
+name: BHOOM geo API diagnostics
 
 on:
   workflow_dispatch:
@@ -13,27 +13,12 @@ jobs:
   inspect:
     runs-on: ubuntu-latest
     steps:
-      - name: Inspect BHOOM geo player
+      - name: Query geo API
         shell: bash
         run: |
           set -e
-          curl --http1.1 --compressed -L --fail --silent --show-error --connect-timeout 5 --max-time 12 -A Mozilla/5.0 -e 'https://bhoomtv.me/live/mollywood-tv/' 'https://bhoomtv.net/geo/watch/443' -o geo443.html
-          echo '=== GEO 443 ==='
-          grep -F 'rest-api/public' -A 8 -B 8 geo443.html | head -80 || true
-          grep -F 'pData' -A 8 -B 8 geo443.html | head -80 || true
-          grep -F 'fetch(' -A 8 -B 8 geo443.html | head -80 || true
-          curl --http1.1 --compressed -L --fail --silent --show-error --connect-timeout 5 --max-time 12 -A Mozilla/5.0 -e 'https://bhoomtv.me/live/mollywood-tv/' 'https://bhoomtv.net/geo/watch/1641' -o geo1641.html
-          echo '=== GEO 1641 ==='
-          grep -F 'rest-api/public' -A 8 -B 8 geo1641.html | head -80 || true
-          grep -F 'pData' -A 8 -B 8 geo1641.html | head -80 || true
-          grep -F 'fetch(' -A 8 -B 8 geo1641.html | head -80 || true
-          curl --http1.1 --compressed -L --fail --silent --show-error --connect-timeout 5 --max-time 12 -A Mozilla/5.0 -e 'https://bhoomtv.me/live/mollywood-plus/' 'https://nxliv.com/sunxt/Play.php?c=13' -o nx13.html
-          echo '=== NX 13 ==='
-          grep -F 'streamSource' -A 8 -B 8 nx13.html | head -80 || true
-          grep -iF 'keyId' -A 5 -B 5 nx13.html | head -80 || true
-          grep -iF 'clearKey' -A 5 -B 5 nx13.html | head -80 || true
-          curl --http1.1 --compressed -L --fail --silent --show-error --connect-timeout 5 --max-time 12 -A Mozilla/5.0 -e 'https://bhoomtv.me/live/mollywood-plus/' 'https://nxliv.com/sunxt/Play.php?c=15' -o nx15.html
-          echo '=== NX 15 ==='
-          grep -F 'streamSource' -A 8 -B 8 nx15.html | head -80 || true
-          grep -iF 'keyId' -A 5 -B 5 nx15.html | head -80 || true
-          grep -iF 'clearKey' -A 5 -B 5 nx15.html | head -80 || true
+          for id in 443 1641; do
+            echo "===== ID $id ====="
+            curl --http1.1 --compressed -L --silent --show-error --connect-timeout 5 --max-time 12 -A Mozilla/5.0 -H 'Content-Type: application/x-www-form-urlencoded' -H 'Accept: application/json, text/plain, */*' -e "https://bhoomtv.net/geo/watch/$id" --data 'action=get_channel_detail&id='"$id" 'https://bhoomtv.net/geo/rest-api/public' -w ' STATUS=%{http_code}\n' || true
+            echo
+          done
