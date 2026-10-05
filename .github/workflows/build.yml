@@ -43,6 +43,7 @@ jobs:
 
       - name: Prepare builds branch
         run: |
+          git config --global url."https://x-access-token:${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"
           if git ls-remote --exit-code --heads origin builds >/dev/null 2>&1; then
             git clone --branch builds --single-branch "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git" builds
           else
