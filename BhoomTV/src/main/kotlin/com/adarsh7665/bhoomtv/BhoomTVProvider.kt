@@ -183,11 +183,7 @@ class BhoomTVProvider : MainAPI() {
         val indexed = indexedTargets
             .filter { q.isBlank() || it.name.contains(q, ignoreCase = true) }
             .map { target ->
-                newLiveSearchResponse(
-                    title = target.name,
-                    url = indexedUrl(target),
-                    apiName = BhoomTVProvider::class.java
-                ) {
+                newLiveSearchResponse(target.name, indexedUrl(target)) {
                     posterUrl = target.poster
                 }
             }
@@ -564,7 +560,7 @@ class BhoomTVProvider : MainAPI() {
 
         extractMediaUrls(text, baseUrl).forEach { candidates += it }
 
-        val absolute = Regex("""(?i)https?://[^"'\\s<>]+""")
+        val absolute = Regex("""(?i)https?://[^"'s<>]+""")
         absolute.findAll(text).forEach {
             val normalized = normalizeUrl(it.value, baseUrl)
             if (normalized != null && isLikelyPlayerOrPage(normalized)) {
@@ -572,7 +568,7 @@ class BhoomTVProvider : MainAPI() {
             }
         }
 
-        val quotedRelative = Regex("""["'](\\/[^"']+)["']""")
+        val quotedRelative = Regex("""["'](/[^"']+)["']""")
         quotedRelative.findAll(text).forEach {
             val normalized = normalizeUrl(it.groupValues[1], baseUrl)
             if (normalized != null && isLikelyPlayerOrPage(normalized)) {
