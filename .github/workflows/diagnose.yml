@@ -13,19 +13,18 @@ jobs:
   inspect:
     runs-on: ubuntu-latest
     steps:
-      - name: Query BHOOM source API
+      - name: Test browser-style BHOOM API request
         shell: bash
         run: |
           set -e
-          for item in mollywood-tv mollywood-plus; do
-            url="https://bhoomtv.me/live/$item/"
-            curl --http1.1 --compressed -L --fail --silent --show-error --connect-timeout 5 --max-time 15 -A Mozilla/5.0 "$url" -o page.html
-            post=$(grep -o 'data-post[^ >]*' page.html | head -1 | tr -cd '0-9')
-            echo "===== $item post=$post ====="
-            if [ "$item" = "mollywood-tv" ]; then indexes="3 6 8 10"; else indexes="1 4 5"; fi
-            for nume in $indexes; do
-              echo "--- nume=$nume ---"
-              curl --http1.1 --compressed -L --fail --silent --show-error --connect-timeout 5 --max-time 15 -A Mozilla/5.0 -H 'Accept: application/json' "https://bhoomtv.me/wp-json/dooplayer/v2/$post/movie/$nume" || true
-              echo
-            done
-          done
+          page='https://bhoomtv.me/live/mollywood-plus/'
+          api='https://bhoomtv.me/wp-json/dooplayer/v2/24741/movie/5'
+          echo '-- page --'
+          curl --http1.1 --compressed -L --fail --silent --show-error --connect-timeout 5 --max-time 15 -c cookies.txt -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/130 Safari/537.36' -H 'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8' "$page" -o page.html
+          echo "page-bytes=$(wc -c < page.html)"
+          echo '-- api plain --'
+          curl --http1.1 --compressed -L --silent --show-error --connect-timeout 5 --max-time 15 -b cookies.txt -c cookies.txt -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/130 Safari/537.36' -H 'Accept: application/json,text/plain,*/*' -e "$page" -w ' status=%{http_code}\n' "$api" || true
+          echo '-- api ajax headers --'
+          curl --http1.1 --compressed -L --silent --show-error --connect-timeout 5 --max-time 15 -b cookies.txt -c cookies.txt -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/130 Safari/537.36' -H 'Accept: application/json, text/javascript, */*; q=0.01' -H 'X-Requested-With: XMLHttpRequest' -H 'Origin: https://bhoomtv.me' -e "$page" -w ' status=%{http_code}\n' "$api" || true
+          echo '-- api fetch metadata --'
+          curl --http1.1 --compressed -L --silent --show-error --connect-timeout 5 --max-time 15 -b cookies.txt -c cookies.txt -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/130 Safari/537.36' -H 'Accept: application/json, text/javascript, */*; q=0.01' -H 'X-Requested-With: XMLHttpRequest' -H 'Origin: https://bhoomtv.me' -H 'Sec-Fetch-Dest: empty' -H 'Sec-Fetch-Mode: cors' -H 'Sec-Fetch-Site: same-origin' -e "$page" -w ' status=%{http_code}\n' "$api" || true
