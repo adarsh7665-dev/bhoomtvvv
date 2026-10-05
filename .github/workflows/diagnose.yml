@@ -1,4 +1,4 @@
-name: BHOOM geo API diagnostics
+name: BHOOM stream diagnostics
 
 on:
   workflow_dispatch:
@@ -13,12 +13,22 @@ jobs:
   inspect:
     runs-on: ubuntu-latest
     steps:
-      - name: Query geo API
+      - name: Test direct BHOOM streams
         shell: bash
         run: |
           set -e
-          for id in 443 1641; do
-            echo "===== ID $id ====="
-            curl --http1.1 --compressed -L --silent --show-error --connect-timeout 5 --max-time 12 -A Mozilla/5.0 -H 'Content-Type: application/x-www-form-urlencoded' -H 'Accept: application/json, text/plain, */*' -e "https://bhoomtv.net/geo/watch/$id" --data 'action=get_channel_detail&id='"$id" 'https://bhoomtv.net/geo/rest-api/public' -w ' STATUS=%{http_code}\n' || true
+          test_url () {
+            label="$1"
+            url="$2"
+            echo "===== $label ====="
+            curl --http1.1 --compressed -L --silent --show-error --connect-timeout 5 --max-time 15 -A Mozilla/5.0 -H 'Accept: */*' -e 'https://bhoomtv.me/' -o /tmp/out -w 'status=%{http_code} type=%{content_type} bytes=%{size_download}\n' "$url" || true
+            head -c 120 /tmp/out 2>/dev/null | tr '\r\n' ' ' || true
             echo
-          done
+          }
+          test_url 'Asianet HD JIO' 'https://bhoomtv.net/geo/live.m3u8?id=443'
+          test_url 'Zee Keralam HD' 'https://bhoomtv.net/geo/live.m3u8?id=1641'
+          test_url 'Asianet Movies HD' 'https://as-net.keralive.workers.dev/v1/master/a0d007312bfd99c47f76b77ae26b1ccdaae76cb1/asianetmovies_live_https/index.m3u8'
+          test_url 'Asianet Plus' 'https://as-net.keralive.workers.dev/v1/master/a0d007312bfd99c47f76b77ae26b1ccdaae76cb1/asianetplus_live_https/index.m3u8'
+          test_url 'Surya TV FHD' 'https://d3dt6rg724ecr3.cloudfront.net/SuryaTv/SuryaTV-HDR10-IN-index.m3u8'
+          test_url 'Surya Movies MPD' 'https://nxliv.com/sunxt/livestream.sunnxt.com/e24ee14c395945bd8ccb065e1bce8b9b/SuryaMoviesB_IN_index.mpd'
+          test_url 'Surya Comedy MPD' 'https://nxliv.com/sunxt/livestream.sunnxt.com/6505e922bf164423ad122f404747356a/SuryaComedyB_IN_index.mpd'
