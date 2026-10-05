@@ -1,0 +1,45 @@
+name: BHOOM source diagnostics
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch BHOOM pages
+        shell: bash
+        run: |
+          set -e
+          for page in mollywood-tv mollywood-plus; do
+            url="https://bhoomtv.org/live/$page/"
+            echo "===== $page ====="
+            curl -L --fail --silent --show-error \
+              -A "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/130 Safari/537.36" \
+              -H "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8" \
+              "$url" -o "$page.html"
+            echo "bytes=$(wc -c < "$page.html")"
+            echo "-- response URL --"
+            curl -L --fail --silent --show-error -o /dev/null -w "%{url_effective}\n" \
+              -A "Mozilla/5.0" "$url"
+            echo "-- source labels --"
+            grep -oiE '.{0,180}(Asianet HD|Asianet Movies HD|Asianet Plus|Zee Keralam HD|Surya TV FHD|Surya Movies|Surya Comedy).{0,300}' "$page.html" | head -80 || true
+            echo "-- media URLs --"
+            grep -oiE 'https?[^"'"'"'[:space:]<>]+(\.m3u8|\.mpd)(\?[^"'"'"'[:space:]<>]*)?' "$page.html" | sort -u | head -100 || true
+            echo "-- likely API/player URLs --"
+            grep -oiE 'https?[^"'"'"'[:space:]<>]+' "$page.html" |
+              grep -Ei '(api|ajax|source|stream|player|playlist|live|embed|m3u8|mpd)' |
+              sort -u | head -150 || true
+            echo "-- scripts --"
+            grep -oiE '<script[^>]+src=["'"'"'][^"'"'"']+' "$page.html" | head -100 || true
+          done
+      - name: Upload raw pages
+        uses: actions/upload-artifact@v4
+        with:
+          name: bhoom-pages
+          path: |
+            mollywood-tv.html
+            mollywood-plus.html
