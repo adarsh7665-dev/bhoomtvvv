@@ -20,13 +20,12 @@ jobs:
           for item in mollywood-tv mollywood-plus; do
             url="https://bhoomtv.me/live/$item/"
             curl --http1.1 --compressed -L --fail --silent --show-error --connect-timeout 5 --max-time 15 -A Mozilla/5.0 "$url" -o page.html
-            post=$(grep -oE 'data-post=["'"'][0-9]+'"'"']' page.html | head -1 | grep -oE '[0-9]+' | head -1)
+            post=$(grep -o 'data-post[^ >]*' page.html | head -1 | tr -cd '0-9')
             echo "===== $item post=$post ====="
             if [ "$item" = "mollywood-tv" ]; then indexes="3 6 8 10"; else indexes="1 4 5"; fi
             for nume in $indexes; do
-              api="https://bhoomtv.me/wp-json/dooplayer/v2/$post/movie/$nume"
               echo "--- nume=$nume ---"
-              curl --http1.1 --compressed -L --fail --silent --show-error --connect-timeout 5 --max-time 15 -A Mozilla/5.0 -H 'Accept: application/json' "$api" || true
+              curl --http1.1 --compressed -L --fail --silent --show-error --connect-timeout 5 --max-time 15 -A Mozilla/5.0 -H 'Accept: application/json' "https://bhoomtv.me/wp-json/dooplayer/v2/$post/movie/$nume" || true
               echo
             done
           done
