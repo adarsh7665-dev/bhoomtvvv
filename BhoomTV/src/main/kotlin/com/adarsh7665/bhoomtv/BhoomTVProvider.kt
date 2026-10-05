@@ -9,6 +9,7 @@ import org.jsoup.nodes.Element
 import java.net.URI
 import java.net.URLDecoder
 
+@OptIn(Prerelease::class, kotlin.uuid.ExperimentalUuidApi::class)
 class BhoomTVProvider : MainAPI() {
     override var mainUrl = "https://bhoomtv.me"
     override var name = "BHOOM TV"
@@ -320,9 +321,6 @@ class BhoomTVProvider : MainAPI() {
                 return true
             }
 
-            parsePlayerStream(page.text)?.let {
-                return emitParsedPlayer(it, embedUrl, callback)
-            }
         }
 
         return false
@@ -409,29 +407,7 @@ class BhoomTVProvider : MainAPI() {
         return true
     }
 
-    private fun emitParsedPlayer(
-        parsed: ParsedPlayer,
-        referer: String,
-        callback: (ExtractorLink) -> Unit
-    ): Boolean {
-        if (parsed.url.isBlank()) return false
-
-        if (!parsed.kid.isNullOrBlank() && !parsed.key.isNullOrBlank()) {
-            emitClearKey(parsed.url, referer, parsed.kid, parsed.key, callback)
-        } else {
-            emitMedia(parsed.url, referer, callback)
-        }
-
-        return true
-    }
-
-    private data class ParsedPlayer(
-        val url: String,
-        val kid: String? = null,
-        val key: String? = null
-    )
-
-    private fun emitMedia(
+    private suspend fun emitMedia(
         url: String,
         referer: String,
         callback: (ExtractorLink) -> Unit
@@ -462,7 +438,7 @@ class BhoomTVProvider : MainAPI() {
         )
     }
 
-    private fun emitClearKey(
+    private suspend fun emitClearKey(
         url: String,
         referer: String,
         kid: String,
@@ -493,7 +469,7 @@ class BhoomTVProvider : MainAPI() {
         )
     }
 
-    private fun emitWidevine(
+    private suspend fun emitWidevine(
         url: String,
         referer: String,
         licenseUrl: String,
