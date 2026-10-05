@@ -133,11 +133,7 @@ class BhoomTVProvider : MainAPI() {
 
         if (pageNumber == 1) {
             normalChannels += indexedTargets.map { target ->
-                newLiveSearchResponse(
-                    title = target.name,
-                    url = indexedUrl(target),
-                    apiName = BhoomTVProvider::class.java
-                ) {
+                newLiveSearchResponse(target.name, indexedUrl(target)) {
                     posterUrl = target.poster
                 }
             }
@@ -472,11 +468,7 @@ class BhoomTVProvider : MainAPI() {
 
                 val poster = findPoster(anchor)
 
-                newLiveSearchResponse(
-                    title = title,
-                    url = href,
-                    apiName = BhoomTVProvider::class.java
-                ) {
+                newLiveSearchResponse(title, href) {
                     posterUrl = poster
                 }
             }
