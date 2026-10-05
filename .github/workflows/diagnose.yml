@@ -13,17 +13,16 @@ jobs:
   inspect:
     runs-on: ubuntu-latest
     steps:
-      - name: Resolve BHOOM APIs with page context
+      - name: Resolve Mollywood TV sources
         shell: bash
         run: |
           set -e
-          page='https://bhoomtv.me/live/mollywood-plus/'
+          page='https://bhoomtv.me/live/mollywood-tv/'
           curl --http1.1 --compressed -L --fail --silent --show-error --connect-timeout 5 --max-time 15 -c cookies.txt -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/130 Safari/537.36' -H 'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8' "$page" -o page.html
           post=$(grep -o 'data-post[^ >]*' page.html | head -1 | tr -cd '0-9')
           echo "post=$post"
-          for nume in 1 4 5; do
+          for nume in 3 6 8 10; do
             echo "===== NUME $nume ====="
-            api="https://bhoomtv.me/wp-json/dooplayer/v2/$post/movie/$nume"
-            curl --http1.1 --compressed -L --silent --show-error --connect-timeout 5 --max-time 15 -b cookies.txt -c cookies.txt -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/130 Safari/537.36' -H 'Accept: application/json, text/javascript, */*; q=0.01' -H 'X-Requested-With: XMLHttpRequest' -H 'Origin: https://bhoomtv.me' -H 'Sec-Fetch-Dest: empty' -H 'Sec-Fetch-Mode: cors' -H 'Sec-Fetch-Site: same-origin' -e "$page" -w ' STATUS=%{http_code}\n' "$api" || true
+            curl --http1.1 --compressed -L --silent --show-error --connect-timeout 5 --max-time 15 -b cookies.txt -c cookies.txt -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/130 Safari/537.36' -H 'Accept: application/json, text/javascript, */*; q=0.01' -H 'X-Requested-With: XMLHttpRequest' -H 'Origin: https://bhoomtv.me' -H 'Sec-Fetch-Dest: empty' -H 'Sec-Fetch-Mode: cors' -H 'Sec-Fetch-Site: same-origin' -e "$page" -w ' STATUS=%{http_code}\n' "https://bhoomtv.me/wp-json/dooplayer/v2/$post/movie/$nume" || true
             echo
           done
