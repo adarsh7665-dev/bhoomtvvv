@@ -13,15 +13,10 @@ jobs:
   inspect:
     runs-on: ubuntu-latest
     steps:
-      - name: List BHOOM scripts
+      - name: Inspect Dooplay AJAX script
         shell: bash
         run: |
           set -e
-          curl --http1.1 --compressed -L --fail --silent --show-error --connect-timeout 5 --max-time 15 -A Mozilla/5.0 'https://bhoomtv.me/live/mollywood-plus/' -o page.html
-          echo "bytes=$(wc -c < page.html)"
-          echo '-- javascript URLs --'
-          grep -oE 'https://[^[:space:]]+\.js[^[:space:]]*' page.html | sort -u | head -100
-          echo '-- dooplay/theme references --'
-          grep -oE 'https://[^[:space:]]+(dooplay|wp-content)[^[:space:]]+' page.html | sort -u | head -150
-          echo '-- inline snippets around player AJAX terms --'
-          grep -oE '.{0,250}(playeroption|dooplay_player|data-nume|data-post|admin-ajax|ajaxurl).{0,600}' page.html | head -80 || true
+          curl --http1.1 --compressed -L --fail --silent --show-error --connect-timeout 5 --max-time 15 -A Mozilla/5.0 'https://bhoomtv.me/wp-content/themes/dooplay/assets/js/front.ajax.min.js?ver=2.5.5' -o ajax.js
+          echo "bytes=$(wc -c < ajax.js)"
+          python3 -c 'import re; p=open("ajax.js",errors="ignore").read(); terms=["dooplayer/v2","play_method","data-nume","data-post","dooplay_player_option","play_ajaxmd","player_api"]; [print("### "+t+"\n"+"\n---\n".join(re.findall(r"(?is).{0,1000}"+re.escape(t)+r".{0,2500}",p)[:20])) for t in terms]'
