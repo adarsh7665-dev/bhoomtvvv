@@ -1,4 +1,4 @@
-name: BHOOM source API diagnostics
+name: BHOOM embed diagnostics
 
 on:
   workflow_dispatch:
@@ -13,16 +13,25 @@ jobs:
   inspect:
     runs-on: ubuntu-latest
     steps:
-      - name: Resolve Mollywood TV sources
+      - name: Inspect returned BHOOM players
         shell: bash
         run: |
           set -e
-          page='https://bhoomtv.me/live/mollywood-tv/'
-          curl --http1.1 --compressed -L --fail --silent --show-error --connect-timeout 5 --max-time 15 -c cookies.txt -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/130 Safari/537.36' -H 'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8' "$page" -o page.html
-          post=$(grep -o 'data-post[^ >]*' page.html | head -1 | tr -cd '0-9')
-          echo "post=$post"
-          for nume in 3 6 8 10; do
-            echo "===== NUME $nume ====="
-            curl --http1.1 --compressed -L --silent --show-error --connect-timeout 5 --max-time 15 -b cookies.txt -c cookies.txt -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/130 Safari/537.36' -H 'Accept: application/json, text/javascript, */*; q=0.01' -H 'X-Requested-With: XMLHttpRequest' -H 'Origin: https://bhoomtv.me' -H 'Sec-Fetch-Dest: empty' -H 'Sec-Fetch-Mode: cors' -H 'Sec-Fetch-Site: same-origin' -e "$page" -w ' STATUS=%{http_code}\n' "https://bhoomtv.me/wp-json/dooplayer/v2/$post/movie/$nume" || true
-            echo
-          done
+          test_url () {
+            label="$1"
+            url="$2"
+            referer="$3"
+            echo "===== $label ====="
+            curl --http1.1 --compressed -L --silent --show-error --connect-timeout 5 --max-time 15 -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/130 Safari/537.36' -e "$referer" "$url" -o tmp.html || true
+            echo "bytes=$(wc -c < tmp.html 2>/dev/null || echo 0)"
+            echo '-- media URLs --'
+            grep -oE 'https?://[^[:space:]<>\"]+(m3u8|mpd)(\?[^[:space:]<>\"]*)?' tmp.html 2>/dev/null | sort -u | head -100 || true
+            echo '-- iframe/source URLs --'
+            grep -oE 'https?://[^[:space:]<>\"]+' tmp.html 2>/dev/null | grep -Ei 'iframe|player|stream|source|playlist|sunxt|nxliv|bhoom' | sort -u | head -100 || true
+            echo '-- relevant snippets --'
+            grep -iE 'm3u8|mpd|iframe|player|source|playlist|stream|jwplayer' tmp.html 2>/dev/null | head -60 || true
+          }
+          test_url 'Asianet HD - JIO' 'https://bhoomtv.net/geo/watch/443' 'https://bhoomtv.me/live/mollywood-tv/'
+          test_url 'Zee Keralam HD' 'https://bhoomtv.net/geo/watch/1641' 'https://bhoomtv.me/live/mollywood-tv/'
+          test_url 'Surya Movies' 'https://nxliv.com/sunxt/Play.php?c=13' 'https://bhoomtv.me/live/mollywood-plus/'
+          test_url 'Surya Comedy' 'https://nxliv.com/sunxt/Play.php?c=15' 'https://bhoomtv.me/live/mollywood-plus/'
