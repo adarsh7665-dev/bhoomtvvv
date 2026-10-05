@@ -1,0 +1,50 @@
+name: BHOOM current playback audit
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Audit homepage channels and special sources
+        shell: bash
+        run: |
+          set -e
+          curl --http1.1 --compressed -L --fail --silent --show-error --connect-timeout 5 --max-time 20 -A Mozilla/5.0 'https://bhoomtv.me/channel/malayalam/' -o home.html
+          echo '=== HOMEPAGE MATCHES ==='
+          grep -oiE 'href=["'"'][^"'"']+/live/[^"'"']+["'"'][^>]*(Manorama|Kairali)|href=["'"'][^"'"']+/live/[^"'"']+["'"'][^>]*' home.html | grep -Ei 'manorama|kairali' | head -40 || true
+          echo '=== TARGET LINKS ==='
+          grep -oiE 'https://bhoomtv\.me/live/[^"'"']+' home.html | grep -Ei 'manorama|kairali' | sort -u | head -40 || true
+          for slug in $(grep -oiE 'https://bhoomtv\.me/live/[^"'"']+' home.html | grep -Ei 'manorama|kairali' | sed 's#https://bhoomtv.me/live/##;s#/$##' | sort -u); do
+            page="https://bhoomtv.me/live/$slug/"
+            echo "===== $page ====="
+            curl --http1.1 --compressed -L --fail --silent --show-error --connect-timeout 5 --max-time 15 -A Mozilla/5.0 -e 'https://bhoomtv.me/channel/malayalam/' "$page" -o page.html
+            post=$(grep -o 'data-post[^ >]*' page.html | head -1 | tr -cd '0-9')
+            echo "POST=$post"
+            grep -oE '<li[^>]*dooplay_player_option[^>]*>.*</li>' page.html | sed 's#<li#\n<li#g' | grep -E 'data-nume|<span class=.title' | head -80 || true
+            if [ -n "$post" ]; then
+              for nume in $(grep -o 'data-nume="[0-9]*"' page.html | tr -cd '0-9\n' | sort -nu); do
+                api="https://bhoomtv.me/wp-json/dooplayer/v2/$post/movie/$nume"
+                echo "--- NUME=$nume ---"
+                curl --http1.1 --compressed -L --fail --silent --show-error --connect-timeout 5 --max-time 12 -A Mozilla/5.0 -e "$page" -H 'Accept: application/json' "$api" || true
+                echo
+              done
+            fi
+          done
+          echo '=== SPECIAL CURRENT SOURCE APIs ==='
+          for item in 'mollywood-tv:3:Asianet-JIO' 'mollywood-tv:6:Asianet-Movies' 'mollywood-tv:8:Asianet-Plus' 'mollywood-tv:10:Zee-Keralam' 'mollywood-plus:1:Surya-TV' 'mollywood-plus:4:Surya-Movies' 'mollywood-plus:5:Surya-Comedy'; do
+            IFS=: read pageid nume label <<< "$item"
+            page="https://bhoomtv.me/live/$pageid/"
+            curl --http1.1 --compressed -L --fail --silent --show-error --connect-timeout 5 --max-time 15 -A Mozilla/5.0 "$page" -o page.html
+            post=$(grep -o 'data-post[^ >]*' page.html | head -1 | tr -cd '0-9')
+            echo "--- $label post=$post nume=$nume ---"
+            curl --http1.1 --compressed -L --fail --silent --show-error --connect-timeout 5 --max-time 12 -A Mozilla/5.0 -e "$page" -H 'Accept: application/json' "https://bhoomtv.me/wp-json/dooplayer/v2/$post/movie/$nume" || true
+            echo
+          done
