@@ -13,18 +13,32 @@ jobs:
   inspect:
     runs-on: ubuntu-latest
     steps:
-      - name: Test browser-style BHOOM API request
+      - name: Resolve all seven BHOOM sources
         shell: bash
         run: |
           set -e
-          page='https://bhoomtv.me/live/mollywood-plus/'
-          api='https://bhoomtv.me/wp-json/dooplayer/v2/24741/movie/5'
-          echo '-- page --'
-          curl --http1.1 --compressed -L --fail --silent --show-error --connect-timeout 5 --max-time 15 -c cookies.txt -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/130 Safari/537.36' -H 'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8' "$page" -o page.html
-          echo "page-bytes=$(wc -c < page.html)"
-          echo '-- api plain --'
-          curl --http1.1 --compressed -L --silent --show-error --connect-timeout 5 --max-time 15 -b cookies.txt -c cookies.txt -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/130 Safari/537.36' -H 'Accept: application/json,text/plain,*/*' -e "$page" -w ' status=%{http_code}\n' "$api" || true
-          echo '-- api ajax headers --'
-          curl --http1.1 --compressed -L --silent --show-error --connect-timeout 5 --max-time 15 -b cookies.txt -c cookies.txt -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/130 Safari/537.36' -H 'Accept: application/json, text/javascript, */*; q=0.01' -H 'X-Requested-With: XMLHttpRequest' -H 'Origin: https://bhoomtv.me' -e "$page" -w ' status=%{http_code}\n' "$api" || true
-          echo '-- api fetch metadata --'
-          curl --http1.1 --compressed -L --silent --show-error --connect-timeout 5 --max-time 15 -b cookies.txt -c cookies.txt -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/130 Safari/537.36' -H 'Accept: application/json, text/javascript, */*; q=0.01' -H 'X-Requested-With: XMLHttpRequest' -H 'Origin: https://bhoomtv.me' -H 'Sec-Fetch-Dest: empty' -H 'Sec-Fetch-Mode: cors' -H 'Sec-Fetch-Site: same-origin' -e "$page" -w ' status=%{http_code}\n' "$api" || true
+          test_source () {
+            label="$1"
+            page="$2"
+            nume="$3"
+            post=$(curl --http1.1 --compressed -L --fail --silent --show-error --connect-timeout 5 --max-time 15 -A Mozilla/5.0 "$page" | grep -o 'data-post[^ >]*' | head -1 | tr -cd '0-9')
+            echo "===== $label post=$post nume=$nume ====="
+            json=$(curl --http1.1 --compressed -L --fail --silent --show-error --connect-timeout 5 --max-time 15 -A Mozilla/5.0 -H 'Accept: application/json' "https://bhoomtv.me/wp-json/dooplayer/v2/$post/movie/$nume")
+            echo "$json"
+            embed=$(printf '%s' "$json" | grep -oE 'https[^\"]+' | head -1 || true)
+            echo "EMBED=$embed"
+            if [ -n "$embed" ]; then
+              echo '-- embed page --'
+              curl --http1.1 --compressed -L --silent --show-error --connect-timeout 5 --max-time 15 -A Mozilla/5.0 -e "$page" "$embed" -o embed.html || true
+              echo "embed-bytes=$(wc -c < embed.html 2>/dev/null || echo 0)"
+              grep -oE 'https?://[^[:space:]<>\"]+(m3u8|mpd)(\?[^[:space:]<>\"]*)?' embed.html 2>/dev/null | sort -u | head -50 || true
+              grep -iE 'm3u8|mpd|iframe|source|playlist|stream' embed.html 2>/dev/null | head -30 || true
+            fi
+          }
+          test_source 'Asianet HD - JIO' 'https://bhoomtv.me/live/mollywood-tv/' 3
+          test_source 'Asianet Movies HD' 'https://bhoomtv.me/live/mollywood-tv/' 6
+          test_source 'Asianet Plus' 'https://bhoomtv.me/live/mollywood-tv/' 8
+          test_source 'Zee Keralam HD' 'https://bhoomtv.me/live/mollywood-tv/' 10
+          test_source 'Surya TV FHD' 'https://bhoomtv.me/live/mollywood-plus/' 1
+          test_source 'Surya Movies' 'https://bhoomtv.me/live/mollywood-plus/' 4
+          test_source 'Surya Comedy' 'https://bhoomtv.me/live/mollywood-plus/' 5
