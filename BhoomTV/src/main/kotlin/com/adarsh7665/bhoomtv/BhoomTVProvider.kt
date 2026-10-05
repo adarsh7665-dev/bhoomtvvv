@@ -86,10 +86,9 @@ class BhoomTVProvider : MainAPI() {
             "https://bhoomtv.net/geo/live.m3u8?id=443",
             "https://bhoomtv.net/geo/watch/443"
         ),
-        "mollywood-tv:6" to FallbackMedia(
-            "https://as-net.keralive.workers.dev/v1/master/a0d007312bfd99c47f76b77ae26b1ccdaae76cb1/asianetmovies_live_https/index.m3u8",
-            "https://bhoomtv.me/jwplayer/"
-        ),
+        // Asianet Movies is intentionally resolved only from the BHOOM page/API.
+        // Do not hard-code a third-party stream here.
+
         "mollywood-tv:8" to FallbackMedia(
             "https://as-net.keralive.workers.dev/v1/master/a0d007312bfd99c47f76b77ae26b1ccdaae76cb1/asianetplus_live_https/index.m3u8",
             "https://bhoomtv.me/jwplayer/"
@@ -272,6 +271,13 @@ class BhoomTVProvider : MainAPI() {
         }
 
         if (option != null) {
+            // First try the exact source option itself. Some BHOOM entries put
+            // the real iframe/stream directly in the option attributes.
+            val direct = candidatesFromElement(option, source.pageUrl)
+            for (candidate in direct) {
+                if (resolveEmbed(candidate, source.pageUrl, callback)) return true
+            }
+
             val post = option.attr("data-post").trim()
             val type = option.attr("data-type").ifBlank { "movie" }
             val nume = option.attr("data-nume").toIntOrNull() ?: source.index
@@ -428,6 +434,22 @@ class BhoomTVProvider : MainAPI() {
         }
 
         if (embedUrl.contains("nxliv.com/", true) && resolveNxliv(embedUrl, pageUrl, callback)) {
+            return true
+        }
+
+        // BHOOM may return an embed page that is not one of the special
+        // providers above. Let CloudStream's extractor handle that BHOOM
+        // embed instead of rejecting it as "no links found".
+        runCatching {
+            loadExtractor(
+                url = embedUrl,
+                referer = pageUrl,
+                subtitleCallback = { },
+                callback = {
+                    callback(it)
+                }
+            )
+        }.getOrNull()?.let {
             return true
         }
 
