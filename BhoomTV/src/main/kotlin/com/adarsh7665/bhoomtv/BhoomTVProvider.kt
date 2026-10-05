@@ -1,19 +1,23 @@
 package com.adarsh7665.bhoomtv
 
+import android.util.Base64
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.utils.*
+import org.json.JSONObject
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 import java.net.URI
+import java.net.URLDecoder
 
 class BhoomTVProvider : MainAPI() {
-    override var mainUrl = "https://bhoomtv.org"
+    override var mainUrl = "https://bhoomtv.me"
     override var name = "BHOOM TV"
     override var lang = "ml"
     override val hasMainPage = true
     override val supportedTypes = setOf(TvType.Live)
 
     private val malayalamPage = "$mainUrl/channel/malayalam/"
+    private val bhoomNetUrl = "https://bhoomtv.net"
 
     private data class IndexedSource(
         val pageId: String,
@@ -23,96 +27,55 @@ class BhoomTVProvider : MainAPI() {
         val poster: String
     )
 
-    /*
-     * BHOOM source indexes confirmed by the source list:
-     *
-     * Mollywood TV
-     *   #3  Asianet HD - JIO
-     *   #6  Asianet Movies HD
-     *   #8  Asianet Plus
-     *   #10 Zee Keralam HD
-     *
-     * Mollywood Plus
-     *   #1  Surya TV FHD
-     *   #4  Surya Movies
-     *   #5  Surya Comedy
-     *
-     * These are BHOOM source positions, not replacement stream URLs.
-     */
     private val indexedSources = listOf(
         IndexedSource(
-            pageId = "mollywood-tv",
-            pageUrl = "$mainUrl/live/mollywood-tv/",
-            index = 3,
-            title = "Asianet HD - JIO",
-            poster = "https://xstreamcp-assets-msp.streamready.in/assets/LIVETV/LIVECHANNEL/LIVETV_LIVETVCHANNEL_ASIANET_HD/images/LOGO_HD/image.png"
-        ),
-        IndexedSource(
-            pageId = "mollywood-tv",
-            pageUrl = "$mainUrl/live/mollywood-tv/",
-            index = 6,
-            title = "Asianet Movies HD",
-            poster = "https://xstreamcp-assets-msp.streamready.in/assets/LIVETV/LIVECHANNEL/LIVETV_LIVETVCHANNEL_ASIANET_MOVIES_HD/images/LOGO_HD/image.png"
-        ),
-        IndexedSource(
-            pageId = "mollywood-tv",
-            pageUrl = "$mainUrl/live/mollywood-tv/",
-            index = 8,
-            title = "Asianet Plus",
-            poster = "https://xstreamcp-assets-msp.streamready.in/assets/LIVETV/LIVECHANNEL/LIVETV_LIVETVCHANNEL_ASIANET_PLUS/images/LOGO_HD/image.png"
-        ),
-        IndexedSource(
-            pageId = "mollywood-tv",
-            pageUrl = "$mainUrl/live/mollywood-tv/",
-            index = 10,
-            title = "Zee Keralam HD",
-            poster = "https://akamaividz2.zee5.com/image/upload/resources/0-9-129/channel_list/1170x658withlogoea00fd123614470c9f82e2fde66280e4.png"
-        ),
-        IndexedSource(
-            pageId = "mollywood-plus",
-            pageUrl = "$mainUrl/live/mollywood-plus/",
-            index = 1,
-            title = "Surya TV FHD",
-            poster = "https://sund-images.sunnxt.com/194397/1000x1000_SuryaTVHD_194397_4c99c17b-92d4-49be-a490-b5958067190a.png"
-        ),
-        IndexedSource(
-            pageId = "mollywood-plus",
-            pageUrl = "$mainUrl/live/mollywood-plus/",
-            index = 4,
-            title = "Surya Movies",
-            poster = "https://sund-images.sunnxt.com/9019/1000x1000_71ddcc0b-16e7-48e9-9998-aa023200f4bc.jpg"
-        ),
-        IndexedSource(
-            pageId = "mollywood-plus",
-            pageUrl = "$mainUrl/live/mollywood-plus/",
-            index = 5,
-            title = "Surya Comedy",
-            poster = "https://sund-images.sunnxt.com/30835/1000x1000_143a4af4-2f02-4c9c-814b-af149e6a5a95.jpg"
-        )
-    )
-
-    private val knownSourceNames = mapOf(
-        "mollywood-tv" to listOf(
-            "Asianet HD",
-            "Asianet SD",
+            "mollywood-tv",
+            "$mainUrl/live/mollywood-tv/",
+            3,
             "Asianet HD - JIO",
-            "Asianet HD USA",
-            "Asianet Movies SD",
-            "Asianet Movies HD",
-            "Asianet Movies HD USA",
-            "Asianet Plus",
-            "Asianet Plus UK",
-            "Zee Keralam HD",
-            "Zee Keralam SD"
+            "https://xstreamcp-assets-msp.streamready.in/assets/LIVETV/LIVECHANNEL/LIVETV_LIVETVCHANNEL_ASIANET_HD/images/LOGO_HD/image.png"
         ),
-        "mollywood-plus" to listOf(
+        IndexedSource(
+            "mollywood-tv",
+            "$mainUrl/live/mollywood-tv/",
+            6,
+            "Asianet Movies HD",
+            "https://xstreamcp-assets-msp.streamready.in/assets/LIVETV/LIVECHANNEL/LIVETV_LIVETVCHANNEL_ASIANET_MOVIES_HD/images/LOGO_HD/image.png"
+        ),
+        IndexedSource(
+            "mollywood-tv",
+            "$mainUrl/live/mollywood-tv/",
+            8,
+            "Asianet Plus",
+            "https://xstreamcp-assets-msp.streamready.in/assets/LIVETV/LIVECHANNEL/LIVETV_LIVETVCHANNEL_ASIANET_PLUS/images/LOGO_HD/image.png"
+        ),
+        IndexedSource(
+            "mollywood-tv",
+            "$mainUrl/live/mollywood-tv/",
+            10,
+            "Zee Keralam HD",
+            "https://akamaividz2.zee5.com/image/upload/resources/0-9-129/channel_list/1170x658withlogoea00fd123614470c9f82e2fde66280e4.png"
+        ),
+        IndexedSource(
+            "mollywood-plus",
+            "$mainUrl/live/mollywood-plus/",
+            1,
             "Surya TV FHD",
-            "Surya TV HD",
-            "Surya TV",
+            "https://sund-images.sunnxt.com/194397/1000x1000_SuryaTVHD_194397_4c99c17b-92d4-49be-a490-b5958067190a.png"
+        ),
+        IndexedSource(
+            "mollywood-plus",
+            "$mainUrl/live/mollywood-plus/",
+            4,
             "Surya Movies",
+            "https://sund-images.sunnxt.com/9019/1000x1000_71ddcc0b-16e7-48e9-9998-aa023200f4bc.jpg"
+        ),
+        IndexedSource(
+            "mollywood-plus",
+            "$mainUrl/live/mollywood-plus/",
+            5,
             "Surya Comedy",
-            "Surya Music",
-            "Kochu TV"
+            "https://sund-images.sunnxt.com/30835/1000x1000_143a4af4-2f02-4c9c-814b-af149e6a5a95.jpg"
         )
     )
 
@@ -120,13 +83,10 @@ class BhoomTVProvider : MainAPI() {
 
     override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
         val pageNumber = page.coerceAtLeast(1)
-        val url = if (pageNumber == 1) {
-            malayalamPage
-        } else {
-            "$mainUrl/channel/malayalam/page/$pageNumber/"
-        }
+        val pageUrl = if (pageNumber == 1) malayalamPage
+        else "$mainUrl/channel/malayalam/page/$pageNumber/"
 
-        val doc = app.get(url, referer = mainUrl).document
+        val doc = app.get(pageUrl, referer = mainUrl, headers = browserHeaders()).document
         val items = parseChannelCards(doc).toMutableList()
 
         if (pageNumber == 1) {
@@ -138,13 +98,26 @@ class BhoomTVProvider : MainAPI() {
         }
 
         val maxPage = doc.select("a[href*='/channel/malayalam/page/']")
-            .mapNotNull { Regex("""/page/(\d+)/?""").find(it.attr("href"))?.groupValues?.getOrNull(1)?.toIntOrNull() }
+            .mapNotNull {
+                Regex("""/channel/malayalam/page/(\d+)/?""")
+                    .find(it.attr("href"))
+                    ?.groupValues
+                    ?.getOrNull(1)
+                    ?.toIntOrNull()
+            }
             .maxOrNull()
 
-        val hasNext = maxPage?.let { pageNumber < it } ?: (items.isNotEmpty() && pageNumber < 4)
+        val hasNext = maxPage?.let { pageNumber < it }
+            ?: (items.isNotEmpty() && pageNumber < 4)
 
         return newHomePageResponse(
-            listOf(HomePageList("Malayalam Live TV", items.distinctBy { it.url }, isHorizontalImages = false)),
+            listOf(
+                HomePageList(
+                    "Malayalam Live TV",
+                    items.distinctBy { it.url },
+                    isHorizontalImages = false
+                )
+            ),
             hasNext = hasNext
         )
     }
@@ -152,40 +125,37 @@ class BhoomTVProvider : MainAPI() {
     override suspend fun search(query: String): List<SearchResponse> {
         val q = query.trim()
 
-        val pages = (1..4).map { page ->
-            val url = if (page == 1) malayalamPage else "$mainUrl/channel/malayalam/page/$page/"
-            app.get(url, referer = mainUrl).document
-        }
-
-        val regular = pages
+        val normal = (1..4)
+            .map { page ->
+                val pageUrl = if (page == 1) malayalamPage
+                else "$mainUrl/channel/malayalam/page/$page/"
+                app.get(pageUrl, referer = mainUrl, headers = browserHeaders()).document
+            }
             .flatMap(::parseChannelCards)
-            .filter { q.isBlank() || it.name.contains(q, ignoreCase = true) }
+            .filter { q.isBlank() || it.name.contains(q, true) }
 
         val indexed = indexedSources
-            .filter { q.isBlank() || it.title.contains(q, ignoreCase = true) }
+            .filter { q.isBlank() || it.title.contains(q, true) }
             .map { source ->
                 newLiveSearchResponse(source.title, indexedDataUrl(source)) {
                     posterUrl = source.poster
                 }
             }
 
-        return (regular + indexed).distinctBy { it.url }
+        return (normal + indexed).distinctBy { it.url }
     }
 
     override suspend fun load(url: String): LoadResponse {
-        val indexed = indexedSources.firstOrNull { indexedDataUrl(it) == url }
-
-        if (indexed != null) {
-            return newLiveStreamLoadResponse(indexed.title, url, url) {
-                posterUrl = indexed.poster
+        indexedSources.firstOrNull { indexedDataUrl(it) == url }?.let { source ->
+            return newLiveStreamLoadResponse(source.title, url, url) {
+                posterUrl = source.poster
             }
         }
 
-        val response = app.get(url, referer = mainUrl)
+        val response = app.get(url, referer = mainUrl, headers = browserHeaders())
         val title = response.document.selectFirst("h1")?.text()?.trim()
             ?: response.document.selectFirst("meta[property='og:title']")?.attr("content")?.trim()
             ?: "BHOOM TV Channel"
-
         val poster = response.document.selectFirst("meta[property='og:image']")?.attr("content")?.trim()
 
         return newLiveStreamLoadResponse(title, url, url) {
@@ -200,190 +170,402 @@ class BhoomTVProvider : MainAPI() {
         callback: (ExtractorLink) -> Unit
     ): Boolean {
         val indexed = indexedSources.firstOrNull { indexedDataUrl(it) == data }
-
         return if (indexed != null) {
-            resolveIndexedSource(indexed, subtitleCallback, callback)
+            resolveIndexedSource(indexed, callback)
         } else {
-            resolvePage(data, mainUrl, subtitleCallback, callback)
+            resolveLivePage(data, callback, subtitleCallback)
         }
     }
 
     private suspend fun resolveIndexedSource(
         source: IndexedSource,
-        subtitleCallback: (SubtitleFile) -> Unit,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        val response = app.get(source.pageUrl, referer = mainUrl)
-        val doc = response.document
-        val html = response.text
+        val pageResponse = runCatching {
+            app.get(source.pageUrl, referer = mainUrl, headers = browserHeaders())
+        }.getOrNull() ?: return false
 
-        val labels = findSourceLabels(doc, source.pageId)
-        val selected = labels.getOrNull(source.index - 1)
+        val option = findSourceOption(pageResponse.document, source.index)
+            ?: pageResponse.document
+                .select("li.dooplay_player_option")
+                .firstOrNull {
+                    normalize(it.selectFirst(".title")?.text().orEmpty()) == normalize(source.title)
+                }
+            ?: return false
 
-        val candidates = linkedSetOf<String>()
+        val post = option.attr("data-post").trim()
+        val type = option.attr("data-type").ifBlank { "movie" }
+        val nume = option.attr("data-nume").toIntOrNull() ?: source.index
 
-        if (selected != null) {
-            candidates += candidatesFromElement(selected, source.pageUrl)
+        if (post.isBlank()) return false
 
-            var parent = selected.parent()
-            repeat(7) {
-                if (parent == null) return@repeat
-                candidates += candidatesFromElement(parent, source.pageUrl)
-                parent = parent.parent()
-            }
-        }
-
-        /*
-         * Exact source-name fallback: useful when the DOM order has wrappers
-         * around the source item.
-         */
-        candidates += doc.getAllElements()
-            .filter { normalize(it.ownText()) == normalize(source.title) }
-            .flatMap { candidatesFromElement(it, source.pageUrl) }
-
-        /*
-         * Only after resolving the selected BHOOM source do we scan the
-         * complete page for media/player URLs. Never substitute another
-         * provider URL.
-         */
-        if (candidates.none(::isMediaUrl)) {
-            val media = extractMediaUrls(html, source.pageUrl).toList()
-            media.getOrNull(source.index - 1)?.let { candidates += it }
-        }
-
-        return dispatchCandidates(candidates, source.pageUrl, subtitleCallback, callback)
+        return resolveDooplaySource(source.pageUrl, post, type, nume, callback)
     }
 
-    private suspend fun resolvePage(
+    private suspend fun resolveLivePage(
         pageUrl: String,
-        referer: String,
-        subtitleCallback: (SubtitleFile) -> Unit,
-        callback: (ExtractorLink) -> Unit
+        callback: (ExtractorLink) -> Unit,
+        subtitleCallback: (SubtitleFile) -> Unit
     ): Boolean {
-        val response = app.get(pageUrl, referer = referer)
-        val doc = response.document
+        val response = runCatching {
+            app.get(pageUrl, referer = mainUrl, headers = browserHeaders())
+        }.getOrNull() ?: return false
 
-        val candidates = linkedSetOf<String>()
-        candidates += extractMediaUrls(response.text, pageUrl)
+        val options = response.document
+            .select("li.dooplay_player_option[data-post][data-nume]")
+            .distinctBy {
+                it.attr("data-post") + ":" + it.attr("data-type") + ":" + it.attr("data-nume")
+            }
+            .sortedBy { it.attr("data-nume").toIntOrNull() ?: Int.MAX_VALUE }
 
-        doc.select(
+        for (option in options.take(12)) {
+            val post = option.attr("data-post").trim()
+            val type = option.attr("data-type").ifBlank { "movie" }
+            val nume = option.attr("data-nume").toIntOrNull() ?: continue
+            if (post.isBlank()) continue
+
+            if (resolveDooplaySource(pageUrl, post, type, nume, callback)) return true
+        }
+
+        val direct = linkedSetOf<String>()
+        direct += extractMediaUrls(response.text, pageUrl)
+
+        response.document.select(
             "iframe[src],iframe[data-src],video[src],video source[src],source[src]," +
                 "[data-src],[data-url],[data-stream],[data-playlist],[data-file],[data-player]"
         ).forEach {
-            candidates += candidatesFromElement(it, pageUrl)
+            direct += candidatesFromElement(it, pageUrl)
         }
 
-        candidates += extractScriptCandidates(response.text, pageUrl)
-
-        return dispatchCandidates(candidates, pageUrl, subtitleCallback, callback)
+        return dispatchDirectCandidates(direct, pageUrl, callback, subtitleCallback)
     }
 
-    private suspend fun dispatchCandidates(
-        candidates: Collection<String>,
-        referer: String,
-        subtitleCallback: (SubtitleFile) -> Unit,
+    private suspend fun resolveDooplaySource(
+        pageUrl: String,
+        post: String,
+        type: String,
+        nume: Int,
         callback: (ExtractorLink) -> Unit
     ): Boolean {
-        var count = 0
+        val apiUrl = "$mainUrl/wp-json/dooplayer/v2/$post/$type/$nume"
 
-        for (candidate in candidates.mapNotNull { normalizeUrl(it, referer) }.distinct().take(20)) {
-            if (isMediaUrl(candidate)) {
-                val type = if (candidate.contains(".mpd", true)) ExtractorLinkType.DASH else ExtractorLinkType.M3U8
-
-                callback(
-                    newExtractorLink(
-                        source = name,
-                        name = name,
-                        url = candidate,
-                        type = type
-                    ) {
-                        this.referer = referer
-                        headers = mapOf(
-                            "User-Agent" to USER_AGENT,
-                            "Accept" to "*/*"
-                        )
-                        quality = Qualities.Unknown.value
-                    }
+        val response = runCatching {
+            app.get(
+                apiUrl,
+                referer = pageUrl,
+                headers = mapOf(
+                    "Accept" to "application/json, text/javascript, */*; q=0.01",
+                    "X-Requested-With" to "XMLHttpRequest",
+                    "Origin" to mainUrl,
+                    "User-Agent" to USER_AGENT
                 )
+            )
+        }.getOrNull() ?: return false
 
-                count++
+        if (!response.isSuccessful) return false
+
+        val embedUrl = runCatching {
+            JSONObject(response.text).optString("embed_url").trim()
+        }.getOrNull().orEmpty()
+
+        if (embedUrl.isBlank()) return false
+
+        return resolveEmbed(
+            normalizeUrl(embedUrl, pageUrl) ?: return false,
+            pageUrl,
+            callback
+        )
+    }
+
+    private suspend fun resolveEmbed(
+        embedUrl: String,
+        pageUrl: String,
+        callback: (ExtractorLink) -> Unit
+    ): Boolean {
+        if (isMediaUrl(embedUrl)) {
+            emitMedia(embedUrl, pageUrl, callback)
+            return true
+        }
+
+        if (embedUrl.contains("$mainUrl/jwplayer/", true)) {
+            extractQueryParameter(embedUrl, "source")?.let { source ->
+                val media = normalizeUrl(source, embedUrl)
+                if (media != null && isMediaUrl(media)) {
+                    emitMedia(media, embedUrl, callback)
+                    return true
+                }
+            }
+        }
+
+        Regex("""^https?://(?:www\.)?bhoomtv\.net/geo/watch/(\d+)""", RegexOption.IGNORE_CASE)
+            .find(embedUrl)
+            ?.groupValues?.getOrNull(1)
+            ?.toIntOrNull()
+            ?.let {
+                return resolveGeoChannel(it, embedUrl, callback)
+            }
+
+        if (embedUrl.contains("nxliv.com/", true)) {
+            if (resolveNxliv(embedUrl, pageUrl, callback)) return true
+        }
+
+        val page = runCatching {
+            app.get(embedUrl, referer = pageUrl, headers = browserHeaders())
+        }.getOrNull()
+
+        if (page != null) {
+            val directMedia = extractMediaUrls(page.text, embedUrl)
+            if (directMedia.isNotEmpty()) {
+                directMedia.forEach { emitMedia(it, embedUrl, callback) }
+                return true
+            }
+
+            parsePlayerStream(page.text)?.let {
+                return emitParsedPlayer(it, embedUrl, callback)
+            }
+        }
+
+        return false
+    }
+
+    private suspend fun resolveGeoChannel(
+        id: Int,
+        embedUrl: String,
+        callback: (ExtractorLink) -> Unit
+    ): Boolean {
+        val response = runCatching {
+            app.post(
+                url = "$bhoomNetUrl/geo/rest-api/public",
+                data = mapOf("action" to "get_channel_detail", "id" to id.toString()),
+                headers = mapOf(
+                    "Content-Type" to "application/x-www-form-urlencoded",
+                    "Accept" to "application/json, text/plain, */*",
+                    "Origin" to bhoomNetUrl,
+                    "User-Agent" to USER_AGENT
+                ),
+                referer = embedUrl
+            )
+        }.getOrNull() ?: return false
+
+        if (!response.isSuccessful) return false
+
+        val json = runCatching { JSONObject(response.text) }.getOrNull() ?: return false
+        val playback = json.optJSONObject("data")
+            ?.optJSONObject("playback")
+            ?.optJSONObject("data")
+            ?: return false
+
+        val abr = playback.optString("abr").trim()
+        val dbr = playback.optString("dbr").trim()
+        val drm = playback.optBoolean("drm", false)
+
+        if (abr.isBlank()) return false
+
+        val kid = firstNonBlank(playback.optString("kid"), playback.optString("keyId"))
+        val key = firstNonBlank(playback.optString("key"), playback.optString("clearkey"))
+
+        if (drm && kid != null && key != null) {
+            emitClearKey(abr, embedUrl, kid, key, callback)
+            return true
+        }
+
+        if (drm && dbr.isNotBlank()) {
+            emitWidevine(abr, embedUrl, dbr, callback)
+            return true
+        }
+
+        emitMedia(normalizeUrl(abr, embedUrl) ?: return false, embedUrl, callback)
+        return true
+    }
+
+    private suspend fun resolveNxliv(
+        embedUrl: String,
+        pageUrl: String,
+        callback: (ExtractorLink) -> Unit
+    ): Boolean {
+        val response = runCatching {
+            app.get(embedUrl, referer = pageUrl, headers = browserHeaders())
+        }.getOrNull() ?: return false
+
+        val html = response.text
+        val stream = Regex("""(?i)(?:let|var|const)\s+streamSource\s*=\s*["']([^"']+)["']""")
+            .find(html)?.groupValues?.getOrNull(1)
+            ?.let { normalizeUrl(it, embedUrl) }
+            ?: return false
+
+        val keyId = Regex("""(?i)(?:const|let|var)\s+keyId\s*=\s*["']([^"']+)["']""")
+            .find(html)?.groupValues?.getOrNull(1)?.trim()
+        val key = Regex("""(?i)(?:const|let|var)\s+key\s*=\s*["']([^"']+)["']""")
+            .find(html)?.groupValues?.getOrNull(1)?.trim()
+
+        if (!isMediaUrl(stream)) return false
+
+        if (!keyId.isNullOrBlank() && !key.isNullOrBlank()) {
+            emitClearKey(stream, embedUrl, keyId, key, callback)
+        } else {
+            emitMedia(stream, embedUrl, callback)
+        }
+
+        return true
+    }
+
+    private fun emitParsedPlayer(
+        parsed: ParsedPlayer,
+        referer: String,
+        callback: (ExtractorLink) -> Unit
+    ): Boolean {
+        if (parsed.url.isBlank()) return false
+
+        if (!parsed.kid.isNullOrBlank() && !parsed.key.isNullOrBlank()) {
+            emitClearKey(parsed.url, referer, parsed.kid, parsed.key, callback)
+        } else {
+            emitMedia(parsed.url, referer, callback)
+        }
+
+        return true
+    }
+
+    private data class ParsedPlayer(
+        val url: String,
+        val kid: String? = null,
+        val key: String? = null
+    )
+
+    private fun emitMedia(
+        url: String,
+        referer: String,
+        callback: (ExtractorLink) -> Unit
+    ) {
+        val normalized = normalizeUrl(url, referer) ?: return
+        if (!isMediaUrl(normalized)) return
+
+        val type = if (normalized.contains(".mpd", true)) {
+            ExtractorLinkType.DASH
+        } else {
+            ExtractorLinkType.M3U8
+        }
+
+        callback(
+            newExtractorLink(
+                source = name,
+                name = name,
+                url = normalized,
+                type = type
+            ) {
+                this.referer = referer
+                headers = mapOf(
+                    "User-Agent" to USER_AGENT,
+                    "Accept" to "*/*"
+                )
+                quality = Qualities.Unknown.value
+            }
+        )
+    }
+
+    private fun emitClearKey(
+        url: String,
+        referer: String,
+        kid: String,
+        key: String,
+        callback: (ExtractorLink) -> Unit
+    ) {
+        val normalized = normalizeUrl(url, referer) ?: return
+        if (!normalized.contains(".mpd", true)) return
+
+        callback(
+            newDrmExtractorLink(
+                source = name,
+                name = name,
+                url = normalized,
+                type = ExtractorLinkType.DASH,
+                uuid = CLEARKEY_DRM_UUID
+            ) {
+                this.kid = hexToBase64(kid)
+                this.key = hexToBase64(key)
+                this.kty = "oct"
+                this.referer = referer
+                headers = mapOf(
+                    "User-Agent" to USER_AGENT,
+                    "Accept" to "*/*"
+                )
+                quality = Qualities.Unknown.value
+            }
+        )
+    }
+
+    private fun emitWidevine(
+        url: String,
+        referer: String,
+        licenseUrl: String,
+        callback: (ExtractorLink) -> Unit
+    ) {
+        val normalized = normalizeUrl(url, referer) ?: return
+        if (!normalized.contains(".mpd", true)) return
+
+        callback(
+            newDrmExtractorLink(
+                source = name,
+                name = name,
+                url = normalized,
+                type = ExtractorLinkType.DASH,
+                uuid = WIDEVINE_DRM_UUID
+            ) {
+                this.licenseUrl = licenseUrl
+                this.referer = referer
+                headers = mapOf(
+                    "User-Agent" to USER_AGENT,
+                    "Accept" to "*/*"
+                )
+                quality = Qualities.Unknown.value
+            }
+        )
+    }
+
+    private suspend fun dispatchDirectCandidates(
+        candidates: Collection<String>,
+        referer: String,
+        callback: (ExtractorLink) -> Unit,
+        subtitleCallback: (SubtitleFile) -> Unit
+    ): Boolean {
+        var found = false
+
+        for (candidate in candidates.mapNotNull { normalizeUrl(it, referer) }.distinct().take(12)) {
+            if (isMediaUrl(candidate)) {
+                emitMedia(candidate, referer, callback)
+                found = true
                 continue
             }
 
-            if (!isWebUrl(candidate)) continue
+            val page = runCatching {
+                app.get(candidate, referer = referer, headers = browserHeaders())
+            }.getOrNull() ?: continue
 
-            /*
-             * Inspect the candidate embed/player first. This catches BHOOM
-             * source pages that expose the real media only in iframe/script
-             * markup.
-             */
-            try {
-                val page = app.get(candidate, referer = referer)
-                val media = linkedSetOf<String>()
-
-                media += extractMediaUrls(page.text, candidate)
-
-                page.document.select(
-                    "video[src],video source[src],source[src],iframe[src]," +
-                        "[data-src],[data-url],[data-stream],[data-playlist],[data-file]"
-                ).forEach {
-                    media += candidatesFromElement(it, candidate)
-                }
-
-                for (mediaUrl in media.mapNotNull { normalizeUrl(it, candidate) }.distinct().take(10)) {
-                    if (!isMediaUrl(mediaUrl)) continue
-
-                    val type = if (mediaUrl.contains(".mpd", true)) ExtractorLinkType.DASH else ExtractorLinkType.M3U8
-
-                    callback(
-                        newExtractorLink(
-                            source = name,
-                            name = name,
-                            url = mediaUrl,
-                            type = type
-                        ) {
-                            this.referer = candidate
-                            headers = mapOf(
-                                "User-Agent" to USER_AGENT,
-                                "Accept" to "*/*"
-                            )
-                            quality = Qualities.Unknown.value
-                        }
-                    )
-
-                    count++
-                }
-
-                if (media.isNotEmpty()) continue
-            } catch (_: Exception) {
-                // Try CloudStream's extractor registry below.
+            extractMediaUrls(page.text, candidate).forEach {
+                emitMedia(it, candidate, callback)
+                found = true
             }
 
-            try {
-                var extracted = 0
+            runCatching {
                 loadExtractor(
                     url = candidate,
                     referer = referer,
                     subtitleCallback = subtitleCallback,
                     callback = {
-                        extracted++
                         callback(it)
+                        found = true
                     }
                 )
-                count += extracted
-            } catch (_: Exception) {
-                // Dead source/player: continue with the next BHOOM candidate.
             }
         }
 
-        return count > 0
+        return found
     }
 
     private fun parseChannelCards(doc: Document): List<SearchResponse> =
         doc.select("a[href*='/live/']")
             .mapNotNull { anchor ->
                 val href = anchor.absUrl("href").ifBlank { anchor.attr("href") }
-                if (href.isBlank()) return@mapNotNull null
+                if (!href.contains("/live/")) return@mapNotNull null
 
                 val slug = href.substringAfter("/live/").substringBefore("/").lowercase()
                 if (slug in containerSlugs) return@mapNotNull null
@@ -399,65 +581,24 @@ class BhoomTVProvider : MainAPI() {
             }
             .distinctBy { it.url }
 
-    private fun findSourceLabels(doc: Document, pageId: String): List<Element> {
-        val allowed = knownSourceNames.getValue(pageId).map(::normalize).toSet()
-
-        return doc.getAllElements()
-            .filter { normalize(it.ownText()) in allowed }
-            .distinctBy { normalize(it.ownText()) }
-    }
+    private fun findSourceOption(doc: Document, index: Int): Element? =
+        doc.selectFirst("li.dooplay_player_option[data-nume='$index']")
 
     private fun candidatesFromElement(element: Element, baseUrl: String): Set<String> {
         val result = linkedSetOf<String>()
 
-        val attrs = listOf(
+        listOf(
             "href", "src", "data-src", "data-url", "data-href",
             "data-stream", "data-playlist", "data-file", "data-player",
             "data-video", "data-embed"
-        )
-
-        attrs.forEach { attr ->
+        ).forEach { attr ->
             val value = element.attr(attr)
             if (value.isNotBlank()) result += extractUrls(value, baseUrl)
         }
 
         val onclick = element.attr("onclick")
         if (onclick.isNotBlank()) result += extractUrls(onclick, baseUrl)
-
         result += extractUrls(element.outerHtml(), baseUrl)
-        return result
-    }
-
-    private fun extractScriptCandidates(html: String, baseUrl: String): Set<String> {
-        val result = linkedSetOf<String>()
-
-        val patterns = listOf(
-            Regex("""(?i)["'](?:file|src|source|stream|url|playlist|hls|dash)["']\s*[:=]\s*["']([^"']+)["']"""),
-            Regex("""(?i)["'](?:player|embed|iframe|video)["']\s*[:=]\s*["']([^"']+)["']""")
-        )
-
-        patterns.forEach { pattern ->
-            pattern.findAll(html).forEach {
-                result += extractUrls(it.groupValues[1], baseUrl)
-            }
-        }
-
-        return result
-    }
-
-    private fun extractMediaUrls(text: String, baseUrl: String): Set<String> {
-        val result = linkedSetOf<String>()
-
-        val patterns = listOf(
-            Regex("""(?i)(?:https?:)?//[^"'\s<>\\]+\.(?:m3u8|mpd)(?:\?[^"'\s<>\\]*)?"""),
-            Regex("""(?i)https?://[^"'\s<>]+(?:m3u8|mpd)(?:\?[^"'\s<>]*)?""")
-        )
-
-        patterns.forEach { pattern ->
-            pattern.findAll(text).forEach {
-                normalizeUrl(it.value, baseUrl)?.let(result::add)
-            }
-        }
 
         return result
     }
@@ -472,13 +613,27 @@ class BhoomTVProvider : MainAPI() {
             }
         }
 
-        Regex("""["'](\/[^"']+)["']""").findAll(text).forEach {
-            normalizeUrl(it.groupValues[1], baseUrl)?.let { url ->
-                if (isWebUrl(url)) result += url
-            }
-        }
-
         return result
+    }
+
+    private fun extractMediaUrls(text: String, baseUrl: String): Set<String> {
+        val result = linkedSetOf<String>()
+        Regex("""(?i)(?:https?:)?//[^"'\s<>\\]+\.(?:m3u8|mpd)(?:\?[^"'\s<>\\]*)?""")
+            .findAll(text)
+            .forEach {
+                normalizeUrl(it.value, baseUrl)?.let(result::add)
+            }
+        return result
+    }
+
+    private fun extractQueryParameter(url: String, name: String): String? {
+        val query = runCatching { URI(url).rawQuery }.getOrNull() ?: return null
+
+        return query.split("&")
+            .firstOrNull { it.substringBefore("=") == name }
+            ?.substringAfter("=", "")
+            ?.let { runCatching { URLDecoder.decode(it, "UTF-8") }.getOrNull() }
+            ?.takeIf { it.isNotBlank() }
     }
 
     private fun normalizeUrl(raw: String?, baseUrl: String): String? {
@@ -491,17 +646,16 @@ class BhoomTVProvider : MainAPI() {
             .replace("&amp;", "&")
             .trim('"', '\'')
 
-        if (value.startsWith("javascript:", true) || value.startsWith("data:", true)) return null
+        if (value.startsWith("javascript:", true)) return null
+        if (value.startsWith("data:", true)) return null
 
-        return try {
+        return runCatching {
             when {
                 value.startsWith("//") -> "https:$value"
                 value.startsWith("http://", true) || value.startsWith("https://", true) -> value
                 else -> URI(baseUrl).resolve(value).toString()
             }
-        } catch (_: Exception) {
-            null
-        }
+        }.getOrNull()
     }
 
     private fun isMediaUrl(url: String): Boolean =
@@ -513,6 +667,35 @@ class BhoomTVProvider : MainAPI() {
     private fun indexedDataUrl(source: IndexedSource): String =
         "bhoom-index://" + source.pageId + "/" + source.index
 
+    private fun browserHeaders(): Map<String, String> =
+        mapOf(
+            "User-Agent" to USER_AGENT,
+            "Accept" to "text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8"
+        )
+
+    private fun hexToBase64(value: String): String {
+        val cleaned = value.trim().removePrefix("0x")
+
+        if (
+            cleaned.isEmpty() ||
+            cleaned.length % 2 != 0 ||
+            !cleaned.matches(Regex("[0-9a-fA-F]+"))
+        ) {
+            return value
+        }
+
+        val bytes = ByteArray(cleaned.length / 2)
+
+        for (i in bytes.indices) {
+            bytes[i] = cleaned.substring(i * 2, i * 2 + 2).toInt(16).toByte()
+        }
+
+        return Base64.encodeToString(bytes, Base64.NO_WRAP)
+    }
+
+    private fun firstNonBlank(vararg values: String): String? =
+        values.firstOrNull { it.isNotBlank() }
+
     private fun findPoster(anchor: Element): String? {
         anchor.selectFirst("img")?.let {
             val src = it.absUrl("src").ifBlank { it.attr("src") }
@@ -520,12 +703,15 @@ class BhoomTVProvider : MainAPI() {
         }
 
         var parent = anchor.parent()
+
         repeat(5) {
             if (parent == null) return@repeat
+
             parent.selectFirst("img")?.let {
                 val src = it.absUrl("src").ifBlank { it.attr("src") }
                 if (src.isNotBlank()) return src
             }
+
             parent = parent.parent()
         }
 
