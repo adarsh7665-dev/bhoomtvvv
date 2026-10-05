@@ -298,7 +298,7 @@ class BhoomTVProvider : MainAPI() {
          * same 1-based ordering as the BHOOM source list.
          */
         if (candidates.none(::isMediaUrl)) {
-            val globalMedia = extractMediaUrls(html, pageUrl)
+            val globalMedia = extractMediaUrls(html, pageUrl).toList()
             globalMedia.getOrNull(target.sourceIndex - 1)?.let(candidates::add)
         }
 
