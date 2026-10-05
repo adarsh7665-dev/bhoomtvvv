@@ -17,15 +17,6 @@ jobs:
         shell: bash
         run: |
           set -e
-          curl -L --fail --silent --show-error --max-time 25 -A Mozilla/5.0 'https://bhoomtv.me/wp-content/themes/dooplay/assets/js/front.scripts.min.js?ver=2.5.5' -o player.js
+          curl --http1.1 --compressed -L --fail --silent --show-error --connect-timeout 5 --max-time 15 -A Mozilla/5.0 'https://bhoomtv.me/wp-content/themes/dooplay/assets/js/front.scripts.min.js?ver=2.5.5' -o player.js
           echo "bytes=$(wc -c < player.js)"
-          echo "-- admin ajax --"
-          grep -oE '.{0,600}admin-ajax\.php.{0,1600}' player.js | head -40 || true
-          echo "-- dooplay player ajax --"
-          grep -oE '.{0,600}dooplay_player_ajax.{0,1600}' player.js | head -40 || true
-          echo "-- player option --"
-          grep -oE '.{0,600}dooplay_player_option.{0,1600}' player.js | head -40 || true
-          echo "-- playeroptionsul --"
-          grep -oE '.{0,600}playeroptionsul.{0,1600}' player.js | head -40 || true
-          echo "-- nume/post/action nearby --"
-          grep -oE '.{0,600}(nume|data-post|action).{0,1200}' player.js | grep -Ei 'player|ajax|post|nume' | head -80 || true
+          python3 -c 'import re; p=open("player.js",errors="ignore").read(); terms=["admin-ajax.php","dooplay_player_ajax","dooplay_player_option","playeroptionsul"]; [print("### "+t+"\n"+"\n---\n".join(re.findall(r"(?is).{0,500}"+re.escape(t)+r".{0,1200}",p)[:10])) for t in terms]'
